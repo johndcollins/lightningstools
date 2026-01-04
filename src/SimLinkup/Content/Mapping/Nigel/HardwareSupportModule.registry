@@ -14,7 +14,7 @@
     <!--<Module>SimLinkup.HardwareSupport.AMI.AMI9001584HardwareSupportModule, SimLinkup, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</Module>-->
     <!--<Module>SimLinkup.HardwareSupport.AMI.AMI900157501HardwareSupportModule, SimLinkup, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</Module>-->
     <Module>SimLinkup.HardwareSupport.Simtek.Simtek100335015HardwareSupportModule, SimLinkup, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</Module>
-    <Module>SimLinkup.HardwareSupport.Simtek.Simtek100295HardwareSupportModule, SimLinkup, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</Module>
+    <!--<Module>SimLinkup.HardwareSupport.Simtek.Simtek100295HardwareSupportModule, SimLinkup, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</Module>-->
     <Module>SimLinkup.HardwareSupport.Simtek.Simtek101091HardwareSupportModule, SimLinkup, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</Module>
     <!--<Module>SimLinkup.HardwareSupport.Simtek.Simtek100207HardwareSupportModule, SimLinkup, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</Module>-->
     <!--<Module>SimLinkup.HardwareSupport.Simtek.Simtek100216HardwareSupportModule, SimLinkup, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</Module>-->

@@ -87,7 +87,7 @@ namespace SimLinkup.HardwareSupport.Simtek
             UpdateBarometricPressureOutputValues();
         }
 
-        private AnalogSignal CreateAltitudeCoarseSinOutputSignal()
+        private AnalogSignal CreateAltitudeCoarseOutputSignal()
         {
             var thisSignal = new AnalogSignal
             {
@@ -205,7 +205,7 @@ namespace SimLinkup.HardwareSupport.Simtek
         {
             _altitudeFineSinOutputSignal = CreateAltitudeFineSinOutputSignal();
             _altitudeFineCosOutputSignal = CreateAltitudeFineCosOutputSignal();
-            _altitudeCoarseOutputSignal = CreateAltitudeCoarseSinOutputSignal();
+            _altitudeCoarseOutputSignal = CreateAltitudeCoarseOutputSignal();
         }
 
         private void Dispose(bool disposing)

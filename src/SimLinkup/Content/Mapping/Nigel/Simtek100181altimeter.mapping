@@ -39,7 +39,7 @@
       <Source xsi:type="AnalogSignal">
         <Id>101081_Altitude_Fine_SIN_To_Instrument</Id>
       </Source>
-      <!-- ANALOG DEVICES DAC OUTPUT 2 -->
+      <!-- ANALOG DEVICES DAC OUTPUT 11 -->
       <Destination xsi:type="AnalogSignal">
         <Id>AnalogDevices_AD536x/537x__DAC_OUTPUT[0][11]</Id>
       </Destination>
@@ -51,7 +51,7 @@
       <Source xsi:type="AnalogSignal">
         <Id>101081_Altitude_Fine_COS_To_Instrument</Id>
       </Source>
-      <!-- ANALOG DEVICES DAC OUTPUT 3 -->
+      <!-- ANALOG DEVICES DAC OUTPUT 12 -->
       <Destination xsi:type="AnalogSignal">
         <Id>AnalogDevices_AD536x/537x__DAC_OUTPUT[0][12]</Id>
       </Destination>
@@ -63,7 +63,7 @@
       <Source xsi:type="AnalogSignal">
         <Id>101081_Altitude_Coarse_To_Instrument</Id>
       </Source>
-      <!-- ANALOG DEVICES DAC OUTPUT 4-->
+      <!-- ANALOG DEVICES DAC OUTPUT 10-->
       <Destination xsi:type="AnalogSignal">
         <Id>AnalogDevices_AD536x/537x__DAC_OUTPUT[0][10]</Id>
       </Destination>
