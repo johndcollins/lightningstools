@@ -9,20 +9,24 @@ namespace Henkie.Common
     public enum DiagnosticLEDMode : byte
     {
         /// <summary>
-        ///  Off
+        ///  LED is always OFF
         /// </summary>
-        Off = 0,
+        Off = 0x00,
         /// <summary>
-        ///  On
+        ///  LED is always ON
         /// </summary>
-        On = 1,
+        On = 0x01,
         /// <summary>
-        ///  Heartbeat
+        ///  LED flashes at heartbeat rate (power-on default)
         /// </summary>
-        Heartbeat = 2,
+        Heartbeat = 0x02,
         /// <summary>
         ///  Toggle ON/OFF state per accepted command
         /// </summary>
-        ToggleOnAcceptedCommand = 3,
+        ToggleOnAcceptedCommand = 0x03,
+        /// <summary>
+        /// LED is ON during DOA packet reception
+        /// </summary>
+        OnDuringDOAPacketReception = 0x04
     }
 }

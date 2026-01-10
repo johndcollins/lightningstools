@@ -17,7 +17,7 @@ namespace Henkie.HSI.Board2
 
 
         private bool _isDisposed;
-        private ICommandDispatcher _commandDispatcher;
+        private readonly ICommandDispatcher _commandDispatcher;
         /// <summary>
         ///   Creates an instance of the <see cref = "Device" /> class.
         /// </summary>
@@ -66,99 +66,142 @@ namespace Henkie.HSI.Board2
         public const short STATOR_ANGLE_MAX_OFFSET = 1023; //10 bits of precision allowed
         public const short MAX_POSITION = 1023; //10 bits of precision allowed
         public const short WATCHDOG_MAX_COUNTDOWN = 63; //6 bits
+        public const byte MAX_HYSTERESIS_THRESHOLD = 0x7F;
+        public const byte MIN_COURSE_45_SIN_COS_CROSSOVER_VALUE = 125;
+        public const byte MAX_COURSE_45_SIN_COS_CROSSOVER_VALUE = 225;
+
         #endregion
 
-        public void SetBearingIndication(short bearingIndicationPosition)
+        public void SetCourseDeviationIndication(short courseDeviationIndicatorPosition)
         {
-			var rangeNum = (byte)(bearingIndicationPosition / 256);
-			var positionInRange=(byte)(bearingIndicationPosition % 256);
+			var rangeNum = (byte)(courseDeviationIndicatorPosition / 256);
+			var positionInRange=(byte)(courseDeviationIndicatorPosition % 256);
             if (rangeNum >=0 && rangeNum <=3)
             {
-				SendCommand(CommandSubaddress.BEARING_0TO90 + rangeNum, positionInRange);
+				SendCommand(CommandSubaddress.CDI_000TO255 + rangeNum, positionInRange);
 			}
 			else 
 			{
-                throw new ArgumentOutOfRangeException(nameof(bearingIndicationPosition), string.Format(CultureInfo.InvariantCulture, "Must be >=0 and <= {0}", MAX_POSITION));
-            }
-        }
-        public void SetHeadingIndication(short headingIndicationPosition)
-        {
-            var rangeNum = (byte)(headingIndicationPosition / 256);
-            var positionInRange = (byte)(headingIndicationPosition % 256);
-            if (rangeNum >= 0 && rangeNum <= 3)
-            {
-                SendCommand(CommandSubaddress.HEADING_0TO90 + rangeNum, positionInRange);
-            }
-            else
-            {
-                throw new ArgumentOutOfRangeException(nameof(headingIndicationPosition), string.Format(CultureInfo.InvariantCulture, "Must be >=0 and <= {0}", MAX_POSITION));
+                throw new ArgumentOutOfRangeException(nameof(courseDeviationIndicatorPosition), string.Format(CultureInfo.InvariantCulture, "Must be >=0 and <= {0}", MAX_POSITION));
             }
         }
 
-        public void SetRangeOnesDigitIndication(short rangeOnesDigitIndicationPosition)
+        public void SetCourseArrowPosition(short courseArrowIndicationPosition)
         {
-            var rangeNum = (byte)(rangeOnesDigitIndicationPosition / 256);
-            var positionInRange = (byte)(rangeOnesDigitIndicationPosition % 256);
+            var rangeNum = (byte)(courseArrowIndicationPosition / 256);
+            var positionInRange = (byte)(courseArrowIndicationPosition % 256);
             if (rangeNum >= 0 && rangeNum <= 3)
             {
-                SendCommand(CommandSubaddress.RANGE_ONES_DIGIT_0TO90 + rangeNum, positionInRange);
+                SendCommand(CommandSubaddress.COURSE_SYNCHRO_EXCITER_000TO255 + rangeNum, positionInRange);
             }
             else
             {
-                throw new ArgumentOutOfRangeException(nameof(rangeOnesDigitIndicationPosition), string.Format(CultureInfo.InvariantCulture, "Must be >=0 and <= {0}", MAX_POSITION));
+                throw new ArgumentOutOfRangeException(nameof(courseArrowIndicationPosition), string.Format(CultureInfo.InvariantCulture, "Must be >=0 and <= {0}", MAX_POSITION));
             }
         }
 
-        public void SetRangeTensDigitIndication(short rangeTensDigitIndicationPosition)
+        public void SetNavigationWarningFlagVisible(bool visible)
         {
-            var rangeNum = (byte)(rangeTensDigitIndicationPosition / 256);
-            var positionInRange = (byte)(rangeTensDigitIndicationPosition % 256);
-            if (rangeNum >= 0 && rangeNum <= 3)
+            SendCommand(CommandSubaddress.NAVIGATION_WARNING_FLAG, visible ? (byte)0 : (byte)1);
+        }
+
+        public void SetToFromFlagsVisible(ToFromFlagsState toFromFlagsState)
+        {
+            SendCommand(CommandSubaddress.TO_FROM_INDICATION, (byte)toFromFlagsState);
+        }
+
+        public HeadingAndCourseState RequestHeadingInfoUpdate()
+        {
+            var headingAndCourseDataPacketBytes = SendQuery(CommandSubaddress.REQUEST_HEADING_INFO_UPDATE, null, 8);
+            return ParseHeadingAndCourseInfoUpdatePacket(headingAndCourseDataPacketBytes);
+        }
+
+        private HeadingAndCourseState ParseHeadingAndCourseInfoUpdatePacket(byte[] headingAndCourseDataPacketBytes)
+        {
+
+            return new HeadingAndCourseState()
             {
-                SendCommand(CommandSubaddress.RANGE_TENS_DIGIT_0TO90 + rangeNum, positionInRange);
+                CourseKnobSettingValueRaw = BitConverter.ToInt16(headingAndCourseDataPacketBytes, 2),
+                HeadingKnobSettingValueRaw = BitConverter.ToInt16(headingAndCourseDataPacketBytes, 4)
+            };
+        }
+
+        public void SetHeadingValueConvertToDegreesOption(bool convertToDegrees)
+        {
+            SendCommand(CommandSubaddress.CONVERT_HEADING_VALUE_TO_DEGREES, (byte)(convertToDegrees ? 0x01: 0x00));
+        }
+        
+        public void SetHeadingValueHysteresisThreshold(byte hysteresisThreshold)
+        {
+            if (hysteresisThreshold <0 || hysteresisThreshold > MAX_HYSTERESIS_THRESHOLD)
+            {
+                throw new ArgumentOutOfRangeException(nameof(hysteresisThreshold), string.Format(CultureInfo.InvariantCulture, "Must be >=0 and <= {0}", MAX_HYSTERESIS_THRESHOLD));
             }
-            else
+            SendCommand(CommandSubaddress.HEADING_VALUE_HYSTERESIS_THRESHOLD, hysteresisThreshold);
+        }
+
+        public HeadingAndCourseState RequestCourseInfoUpdate()
+        {
+            var headingAndCourseDataPacketBytes = SendQuery(CommandSubaddress.REQUEST_COURSE_INFO_UPDATE, null, 8);
+            return ParseHeadingAndCourseInfoUpdatePacket(headingAndCourseDataPacketBytes);
+        }
+
+        public void SetCourseValueConvertOption(CourseValueConvertOption courseValueConvertOption)
+        {
+            SendCommand(CommandSubaddress.CONVERT_COURSE_VALUE_TO_DEGREES, (byte)courseValueConvertOption);
+        }
+
+        public void SetCourseValueHysteresisThreshold(byte hysteresisThreshold)
+        {
+            if (hysteresisThreshold < 0 || hysteresisThreshold > MAX_HYSTERESIS_THRESHOLD)
             {
-                throw new ArgumentOutOfRangeException(nameof(rangeTensDigitIndicationPosition), string.Format(CultureInfo.InvariantCulture, "Must be >=0 and <= {0}", MAX_POSITION));
+                throw new ArgumentOutOfRangeException(nameof(hysteresisThreshold), string.Format(CultureInfo.InvariantCulture, "Must be >=0 and <= {0}", MAX_HYSTERESIS_THRESHOLD));
+            }
+            SendCommand(CommandSubaddress.COURSE_VALUE_HYSTERISIS_THRESHOLD, hysteresisThreshold);
+        }
+
+        public void SetCourse45DegreeSinCosCrossoverValue(byte value)
+        {
+            if (value < MIN_COURSE_45_SIN_COS_CROSSOVER_VALUE || value > MAX_COURSE_45_SIN_COS_CROSSOVER_VALUE)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), string.Format(CultureInfo.InvariantCulture, "Must be >={0} and <= {1}", MIN_COURSE_45_SIN_COS_CROSSOVER_VALUE, MAX_COURSE_45_SIN_COS_CROSSOVER_VALUE));
             }
         }
 
-        public void SetRangeHundredsDigitIndication(short rangeHundredsDigitIndicationPosition)
+        public void SetUsbMessagingOption(UsbMessagingOption option)
         {
-            var rangeNum = (byte)(rangeHundredsDigitIndicationPosition / 256);
-            var positionInRange = (byte)(rangeHundredsDigitIndicationPosition % 256);
-            if (rangeNum >= 0 && rangeNum <= 3)
-            {
-                SendCommand(CommandSubaddress.RANGE_HUNDREDS_DIGIT_0TO90 + rangeNum, positionInRange);
-            }
-            else
-            {
-                throw new ArgumentOutOfRangeException(nameof(rangeHundredsDigitIndicationPosition), string.Format(CultureInfo.InvariantCulture, "Must be >=0 and <= {0}", MAX_POSITION));
-            }
+            SendCommand(CommandSubaddress.USB_MESSAGING_OPTION, (byte)option);
         }
 
-        public void SetRangeInvalidIndicatorVisible(bool visible)
+        public void SetUsbMessageTimeInterval(byte numTicks)
         {
-            SendCommand(CommandSubaddress.RANGE_INVALID, visible ? (byte)0 : (byte)1);
+            SendCommand(CommandSubaddress.USB_MESSAGE_TIME_INTERVAL, numTicks);
+        }
+
+        public void SetEnableSinCosRawDataOutputForAlignment(bool enabled)
+        {
+            SendCommand(CommandSubaddress.SINE_COSINE_ALIGNMENT, enabled ? (byte)0x01 : (byte)0x00);
         }
 
         public void SetDigitalOutputChannelValue(OutputChannels outputChannel, bool value)
         {
             switch (outputChannel)
             {
-                case OutputChannels.DIG_OUT_1:
-                    SendCommand(CommandSubaddress.DIG_OUT_1, (byte)(value ? 1 : 0));
+                case OutputChannels.DIG_OUT_A:
+                    SendCommand(CommandSubaddress.DIG_OUT_A, (byte)(value ? 0x01 : 0x00));
                     break;
-                case OutputChannels.DIG_OUT_2:
-                    SendCommand(CommandSubaddress.DIG_OUT_2, (byte)(value ? 1 : 0));
+                case OutputChannels.DIG_OUT_B:
+                    SendCommand(CommandSubaddress.DIG_OUT_B, (byte)(value ? 0x01 : 0x00));
+                    break;
+                case OutputChannels.DIG_OUT_X:
+                    SendCommand(CommandSubaddress.DIG_OUT_X, (byte)(value ? 0x01 : 0x00));
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(outputChannel));
             }
-
         }
 
-        public void SetStatorOffsetCoilMask(short offset)
+        public void SetCourseSynchroExciterStatorCoilOffset(short offset)
         {
             const ushort LSB_BITMASK = 0xFF; //bits 0-7
             const ushort MSB_BITMASK = 0x300; //bits 8-9
@@ -169,11 +212,11 @@ namespace Henkie.HSI.Board2
             }
             var lsb = (byte)(offset & LSB_BITMASK);
             var msb = (byte)((offset & MSB_BITMASK) >>8);
-            SendCommand(CommandSubaddress.SET_STATOR_COIL_OFFSET_LSB, lsb);
-            SendCommand(CommandSubaddress.SET_STATOR_COIL_OFFSET_MSB, msb);
+            SendCommand(CommandSubaddress.SET_COURSE_SYNCHRO_EXCITER_STATOR_COIL_OFFSET_LSB, lsb);
+            SendCommand(CommandSubaddress.SET_COURSE_SYNCHRO_EXCITER_STATOR_COIL_OFFSET_MSB, msb);
         }
 
-        public void LoadBearingOffsetStatorCoilMask(StatorSignals statorSignal)
+        public void LoadCourseSynchroExciterStatorCoilOffset(StatorSignals statorSignal)
         {
             byte val;
             switch (statorSignal)
@@ -190,150 +233,34 @@ namespace Henkie.HSI.Board2
                 default:
                     throw new ArgumentOutOfRangeException(nameof(statorSignal));
             }
-            SendCommand(CommandSubaddress.LOAD_BEARING_OFFSET_STATOR_COIL_MASK, val);
+            SendCommand(CommandSubaddress.LOAD_COURSE_SYNCHRO_EXCITER_OFFSET_STATOR_COIL_MASK, val);
         }
 
-        public void LoadHeadingOffsetStatorCoilMask(StatorSignals statorSignal)
-        {
-            byte val;
-            switch (statorSignal)
-            {
-                case StatorSignals.S1:
-                    val = 0x01;
-                    break;
-                case StatorSignals.S2:
-                    val = 0x02;
-                    break;
-                case StatorSignals.S3:
-                    val = 0x04;
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(statorSignal));
-            }
-            SendCommand(CommandSubaddress.LOAD_BEARING_OFFSET_STATOR_COIL_MASK, val);
-        }
-
-        public void LoadRangeOffsetStatorCoilMask(RangeDigitStatorCoils statorSignal)
-        {
-            SendCommand(CommandSubaddress.LOAD_BEARING_OFFSET_STATOR_COIL_MASK, (byte)statorSignal);
-        }
-
-
-        public void SetBearingStatorSignalCoarseSetpointDeferred(StatorSignals statorSignal, byte coarseSetpoint)
+        public void SetCourseSynchroExciterStatorCoilValueDeferred(StatorSignals statorSignal, byte value)
         {
             switch (statorSignal)
             {
                 case StatorSignals.S1:
-                    SendCommand(CommandSubaddress.BEARING_S1_COARSE_SETPOINT_DEFERRED, coarseSetpoint);
+                    SendCommand(CommandSubaddress.COURSE_EXCITER_S1_COARSE_SETPOINT_DEFERRED, value);
                     break;
                 case StatorSignals.S2:
-                    SendCommand(CommandSubaddress.BEARING_S2_COARSE_SETPOINT_DEFERRED, coarseSetpoint);
+                    SendCommand(CommandSubaddress.COURSE_EXCITER_S2_COARSE_SETPOINT_DEFERRED, value);
                     break;
                 case StatorSignals.S3:
-                    SendCommand(CommandSubaddress.BEARING_S3_COARSE_SETPOINT_DEFERRED, coarseSetpoint);
+                    SendCommand(CommandSubaddress.COURSE_EXCITER_S3_COARSE_SETPOINT_DEFERRED, value);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(statorSignal));
             }
         }
-        public void SetBearingStatorSignalsPolaritiesAndLoad(Polarity s1, Polarity s2, Polarity s3)
+        public void SetCourseSynchroExciterStatorCoilSignalsPolaritiesAndLoad(Polarity s1, Polarity s2, Polarity s3)
         {
             var statorSignalPolarities = StatorSignals.Unknown;
             if (s1 == Polarity.Positive) statorSignalPolarities |= StatorSignals.S1;
             if (s2 == Polarity.Positive) statorSignalPolarities |= StatorSignals.S2;
             if (s3 == Polarity.Positive) statorSignalPolarities |= StatorSignals.S3;
-            SendCommand(CommandSubaddress.BEARING_SX_POLARITY_AND_LOAD, (byte)statorSignalPolarities);
+            SendCommand(CommandSubaddress.COURSE_EXCITER_SX_POLARITY_AND_LOAD, (byte)statorSignalPolarities);
         }
-
-        public void SetHeadingStatorSignalCoarseSetpointDeferred(StatorSignals statorSignal, byte coarseSetpoint)
-        {
-            switch (statorSignal)
-            {
-                case StatorSignals.S1:
-                    SendCommand(CommandSubaddress.HEADING_S1_COARSE_SETPOINT_DEFERRED, coarseSetpoint);
-                    break;
-                case StatorSignals.S2:
-                    SendCommand(CommandSubaddress.HEADING_S2_COARSE_SETPOINT_DEFERRED, coarseSetpoint);
-                    break;
-                case StatorSignals.S3:
-                    SendCommand(CommandSubaddress.HEADING_S3_COARSE_SETPOINT_DEFERRED, coarseSetpoint);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(statorSignal));
-            }
-        }
-        public void SetHeadingStatorSignalsPolaritiesAndLoad(Polarity s1, Polarity s2, Polarity s3)
-        {
-            var statorSignalPolarities = StatorSignals.Unknown;
-            if (s1 == Polarity.Positive) statorSignalPolarities |= StatorSignals.S1;
-            if (s2 == Polarity.Positive) statorSignalPolarities |= StatorSignals.S2;
-            if (s3 == Polarity.Positive) statorSignalPolarities |= StatorSignals.S3;
-            SendCommand(CommandSubaddress.HEADING_SX_POLARITY_AND_LOAD, (byte)statorSignalPolarities);
-        }
-        public void SetRangeOnesDigitStatorSignalCoarseSetpointDeferred(StatorSignals statorSignal, byte coarseSetpoint)
-        {
-            switch (statorSignal)
-            {
-                case StatorSignals.X:
-                    SendCommand(CommandSubaddress.RANGE_ONES_DIGIT_X_STATOR_COARSE_SETPOINT_DEFERRED, coarseSetpoint);
-                    break;
-                case StatorSignals.Y:
-                    SendCommand(CommandSubaddress.RANGE_ONES_DIGIT_Y_STATOR_COARSE_SETPOINT_DEFERRED, coarseSetpoint);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(statorSignal));
-            }
-        }
-        public void SetRangeOnesDigitStatorSignalsPolaritiesAndLoad(Polarity x, Polarity y)
-        {
-            var statorSignalPolarities = StatorSignals.Unknown;
-            if (x == Polarity.Positive) statorSignalPolarities |= StatorSignals.X;
-            if (y == Polarity.Positive) statorSignalPolarities |= StatorSignals.Y;
-            SendCommand(CommandSubaddress.RANGE_ONES_DIGIT_POLARITY_AND_LOAD_COARSE_SETPOINT, (byte)statorSignalPolarities);
-        }
-        public void SetRangeTensDigitStatorSignalCoarseSetpointDeferred(StatorSignals statorSignal, byte coarseSetpoint)
-        {
-            switch (statorSignal)
-            {
-                case StatorSignals.X:
-                    SendCommand(CommandSubaddress.RANGE_TENS_DIGIT_X_STATOR_COARSE_SETPOINT_DEFERRED, coarseSetpoint);
-                    break;
-                case StatorSignals.Y:
-                    SendCommand(CommandSubaddress.RANGE_TENS_DIGIT_Y_STATOR_COARSE_SETPOINT_DEFERRED, coarseSetpoint);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(statorSignal));
-            }
-        }
-        public void SetRangeTensDigitStatorSignalsPolaritiesAndLoad(Polarity x, Polarity y)
-        {
-            var statorSignalPolarities = StatorSignals.Unknown;
-            if (x == Polarity.Positive) statorSignalPolarities |= StatorSignals.X;
-            if (y == Polarity.Positive) statorSignalPolarities |= StatorSignals.Y;
-            SendCommand(CommandSubaddress.RANGE_TENS_DIGIT_POLARITY_AND_LOAD_COARSE_SETPOINT, (byte)statorSignalPolarities);
-        }
-        public void SetRangeHundredsDigitStatorSignalCoarseSetpointDeferred(StatorSignals statorSignal, byte coarseSetpoint)
-        {
-            switch (statorSignal)
-            {
-                case StatorSignals.X:
-                    SendCommand(CommandSubaddress.RANGE_HUNDREDS_DIGIT_X_STATOR_COARSE_SETPOINT_DEFERRED, coarseSetpoint);
-                    break;
-                case StatorSignals.Y:
-                    SendCommand(CommandSubaddress.RANGE_HUNDREDS_DIGIT_Y_STATOR_COARSE_SETPOINT_DEFERRED, coarseSetpoint);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(statorSignal));
-            }
-        }
-        public void SetRangeHundredsDigitStatorSignalsPolaritiesAndLoad(Polarity x, Polarity y)
-        {
-            var statorSignalPolarities = StatorSignals.Unknown;
-            if (x == Polarity.Positive) statorSignalPolarities |= StatorSignals.X;
-            if (y == Polarity.Positive) statorSignalPolarities |= StatorSignals.Y;
-            SendCommand(CommandSubaddress.RANGE_HUNDREDS_DIGIT_POLARITY_AND_LOAD_COARSE_SETPOINT, (byte)statorSignalPolarities);
-        }
-
 
         public void ConfigureDiagnosticLEDBehavior(DiagnosticLEDMode mode)
         {
@@ -343,7 +270,7 @@ namespace Henkie.HSI.Board2
         public string Identify()
         {
             return ConnectionType == ConnectionType.USB
-                ? Encoding.ASCII.GetString(SendQuery(CommandSubaddress.IDENTIFY, 0x00, 14), 0, 14)
+                ? Encoding.ASCII.GetString(SendQuery(CommandSubaddress.IDENTIFY, 0x00, 17), 0, 17)
                 : null;
         }
 

@@ -18,7 +18,7 @@ namespace Henkie.HSI.Board1
 
 
         private bool _isDisposed;
-        private ICommandDispatcher _commandDispatcher;
+        private readonly ICommandDispatcher _commandDispatcher;
         /// <summary>
         ///   Creates an instance of the <see cref = "Device" /> class.
         /// </summary>
@@ -344,7 +344,7 @@ namespace Henkie.HSI.Board1
         public string Identify()
         {
             return ConnectionType == ConnectionType.USB
-                ? Encoding.ASCII.GetString(SendQuery(CommandSubaddress.IDENTIFY, 0x00, 14), 0, 14)
+                ? Encoding.ASCII.GetString(SendQuery(CommandSubaddress.IDENTIFY, 0x00, 17), 0, 17)
                 : null;
         }
 

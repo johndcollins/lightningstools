@@ -47,7 +47,7 @@ namespace Henkie.HSI.Board2
         /// <summary>
         ///   Heading value hysteresis threshold (0x00 to 0x7F)
         /// </summary>
-        HEADING_VALUE_HYSTERISIS_THRESHOLD = 8,
+        HEADING_VALUE_HYSTERESIS_THRESHOLD = 8,
 
         /// <summary>
         ///   Request course info update (results in one reply message)
@@ -63,105 +63,104 @@ namespace Henkie.HSI.Board2
         COURSE_VALUE_HYSTERISIS_THRESHOLD = 11,
 
         /// <summary>
+        /// Course 45° Sin/Cos crossover value (125 ... 225), actual setting is * 4 [500-900]
+        /// </summary>
+        COURSE_45_DEGREE_SIN_COS_CROSSOVER_VALUE = 12,
+
+        /// <summary>
         ///   USB messaging option 
         ///     0 – send never (disabled)
         ///     1 – send only on request (as reply to command 6 or 9)
         ///     2 – send on interval (periodically)
         ///     3 – as option 2, but only if the value has changed
         /// </summary>
-        USB_MESSAGING_OPTIONS= 12,
+        USB_MESSAGING_OPTION= 13,
+
         /// <summary>
         ///  USB Message Time Interval (0x00 to 0xFF)
         /// (1 tick = 4 ms delay), default is 25 ticks.
         ///</summary>
-        USB_MESSAGE_TIME_INTERVAL=13,
+        USB_MESSAGE_TIME_INTERVAL=14,
 
         /// <summary>
-        /// Sine/Cosine Alignment
+        /// Sine/Cosine raw data output for alignment (0 = disabled, 1 = enable)
         ///</summary>
-        SINE_COSINE_ALIGNMENT = 14,
+        SINE_COSINE_ALIGNMENT = 15,
 
 
         /// <summary>
         ///   Set course synchro exciter in "range" 000 – 255
         /// </summary>
-        COURSE_SYNCHRO_EXCITER_000TO255 = 15,
+        COURSE_SYNCHRO_EXCITER_000TO255 = 16,
         /// <summary>
         ///   Set course synchro exciter in "range" 256 – 511
         /// </summary>
-        COURSE_SYNCHRO_EXCITER_256TO511 = 16,
+        COURSE_SYNCHRO_EXCITER_256TO511 = 17,
         /// <summary>
         ///   Set course synchro exciter in "range" 512 – 767
         /// </summary>
-        COURSE_SYNCHRO_EXCITER_512TO767 = 17,
+        COURSE_SYNCHRO_EXCITER_512TO767 = 18,
         /// <summary>
         ///   Set course synchro exciter in "range" 768 – 1023
         /// </summary>
-        COURSE_SYNCHRO_EXCITER_768TO1023 = 18,
+        COURSE_SYNCHRO_EXCITER_768TO1023 = 19,
 
         /// <summary>
         ///   Set course synchro exciter stator coil offset value (lower 8 bits)
         /// </summary>
-        SET_COURSE_SYNCHRO_EXCITER_STATOR_COIL_OFFSET_LSB = 19,
+        SET_COURSE_SYNCHRO_EXCITER_STATOR_COIL_OFFSET_LSB = 20,
         /// <summary>
         ///   Set course synchro exciter stator coil offset value (upper 2 bits)
         /// </summary>
-        SET_COURSE_SYNCHRO_EXCITER_STATOR_COIL_OFFSET_MSB = 20,
+        SET_COURSE_SYNCHRO_EXCITER_STATOR_COIL_OFFSET_MSB = 21,
         /// <summary>
         ///   Load course synchro exciter stator coil offset (0x01 =S1, 0x02 = S2, 0x04 = S3)
         /// </summary>
-        LOAD_COURSE_SYNCHRO_EXCITER_OFFSET_STATOR_COIL_MASK = 21,
+        LOAD_COURSE_SYNCHRO_EXCITER_OFFSET_STATOR_COIL_MASK = 22,
         /// <summary>
 
 
         /// <summary>
         ///   Set value of user-defined digital output A; 0=logic zero (false), 1=logic one (true)
         /// </summary>
-        DIG_OUT_A = 22,
+        DIG_OUT_A = 23,
         /// <summary>
         ///   Set value of user-defined digital output B; 0=logic zero (false), 1=logic one (true)
         /// </summary>
-        DIG_OUT_B = 23,
+        DIG_OUT_B = 24,
         /// <summary>
         ///   Set value of user-defined digital output X; 0=logic zero (false), 1=logic one (true)
         /// </summary>
-        DIG_OUT_X = 24,
-
-
+        DIG_OUT_X = 25,
 
 
         /// <summary>
         ///   Set amplitude (coarse setpoint) of COURSE EXCITER stator signal S1 deferred
         /// </summary>
-        COURSE_EXCITER_S1_COARSE_SETPOINT_DEFERRED = 25,
+        COURSE_EXCITER_S1_COARSE_SETPOINT_DEFERRED = 26,
         /// <summary>
         ///   Set amplitude (coarse setpoint) of COURSE EXCITER stator signal S2 deferred
         /// </summary>
-        COURSE_EXCITER_S2_COARSE_SETPOINT_DEFERRED = 26,
+        COURSE_EXCITER_S2_COARSE_SETPOINT_DEFERRED = 27,
         /// <summary>
         ///   Set amplitude (coarse setpoint) of COURSE EXCITER stator signal S3 deferred
         /// </summary>
-        COURSE_EXCITER_S3_COARSE_SETPOINT_DEFERRED = 27,
+        COURSE_EXCITER_S3_COARSE_SETPOINT_DEFERRED = 28,
         /// <summary>
         ///   set polarity of COURSE EXCITER stator signals S3,S2,S1 and load amplitude (coarse setpoint) (lsb=S1 polarity)
         /// </summary>
-        COURSE_EXCITER_SX_POLARITY_AND_LOAD = 28,
-
-
-
-
-
+        COURSE_EXCITER_SX_POLARITY_AND_LOAD = 29,
 
 
 
         /// <summary>
         ///   Disable watchdog timer functionality
         /// </summary>
-        DISABLE_WATCHDOG = 29,
+        DISABLE_WATCHDOG = 30,
         /// <summary>
         ///   Control watchdog timer functionality
         /// </summary>
-        WATCHDOG_CONTROL = 30,
+        WATCHDOG_CONTROL = 31,
         
 
 
@@ -173,18 +172,18 @@ namespace Henkie.HSI.Board2
         ///   3 LED toggles ON/OFF state per accepted command
         ///   4 LED is ON during DOA packet reception
         /// </summary>
-        DIAG_LED = 31,
+        DIAG_LED = 32,
 
 
         /// <summary>
         ///  IDENTIFY (USB only): send identification “HSI #2 vA.B $xy” 
         /// </summary>
-        IDENTIFY = 48,
+        IDENTIFY = 33,
 
         /// <summary>
         ///  DEBUG (USB only): USB DEBUG enabled (data value ='Y' or 'N')
         /// </summary>
-        USB_DEBUG = 49,
+        USB_DEBUG = 34,
 
 
 

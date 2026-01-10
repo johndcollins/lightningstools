@@ -15,12 +15,17 @@ namespace Henkie.HSI.Board2
         /// </summary>
         Unknown = 0,
         /// <summary>
-        ///  User defined digital output #1
+        ///  User defined digital output A
         /// </summary>
-        DIG_OUT_1 = 1 << 1,
+        DIG_OUT_A = 1 << 1,
         /// <summary>
-        ///  User defined digital output #2
+        ///  User defined digital output B
         /// </summary>
-        DIG_OUT_2 = 1 << 2,
+        DIG_OUT_B = 1 << 2,
+        /// <summary>
+        ///  User defined digital output X
+        /// </summary>
+        DIG_OUT_X = 1 << 3,
+
     }
 }
