@@ -650,7 +650,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             {
                 Category = "Outputs",
                 CollectionName = "Digital Outputs",
-                FriendlyName = "NAV Warning Flag",
+                FriendlyName = "NAV Warning Flag (0 = visible, 1 = not visible)",
                 Id = $"Henk_F16_HS1_Board2[{"0x" + _hsiBoard2DeviceAddress.ToString("X").PadLeft(2, '0')}]__NAV_Warning_Flag_To_Instrument",
                 Index = 0,
                 Source = this,
@@ -872,7 +872,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
         {
             if (_hsiBoard2DeviceInterface != null && _navigationWarningFlagOutputSignal != null && _deviationFlagInputSignal != null)
             {
-                _navigationWarningFlagOutputSignal.State = _deviationFlagInputSignal.State;
+                _navigationWarningFlagOutputSignal.State = !_deviationFlagInputSignal.State;
             }
         }
 
