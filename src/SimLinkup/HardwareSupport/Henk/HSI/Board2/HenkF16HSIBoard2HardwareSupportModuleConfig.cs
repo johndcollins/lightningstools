@@ -31,40 +31,44 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
     {
         public string Address { get; set; }
         public string COMPort { get; set; }
-        public ConnectionType? ConnectionType { get; set; }
-        public DiagnosticLEDMode? DiagnosticLEDMode { get; set; }
-        public OutputChannelsConfig OutputChannelsConfig { get; set; }
-        public StatorOffsetsConfig StatorOffsetsConfig { get; set; }
+        public ConnectionType? ConnectionType { get; set; } = Henkie.Common.ConnectionType.USB;
+        public DiagnosticLEDMode? DiagnosticLEDMode { get; set; } = Henkie.Common.DiagnosticLEDMode.Heartbeat;
+        public OutputChannelsConfig OutputChannelsConfig { get; set; } = new OutputChannelsConfig();
+        public StatorOffsetsConfig StatorOffsetsConfig { get; set; } = new StatorOffsetsConfig();
+
+        public byte HeadingValueHysteresisThreshold { get; set; } = 0;
+        public byte CourseValueHysteresisThreshold { get; set; } = 0;
+        public byte Course45DegreeSinCosCrossover { get; set; } = 177;
 
         [XmlArray("CourseExciterCalibrationData")]
         [XmlArrayItem(nameof(CalibrationPoint))]
-        public CalibrationPoint[] CourseExciterCalibrationData { get; set; }
+        public CalibrationPoint[] CourseExciterCalibrationData { get; set; } = Array.Empty<CalibrationPoint>();
 
         [XmlArray("CourseDeviationIndicatorCalibrationData")]
         [XmlArrayItem(nameof(CalibrationPoint))]
-        public CalibrationPoint[] CourseDeviationIndicatorCalibrationData { get; set; }
+        public CalibrationPoint[] CourseDeviationIndicatorCalibrationData { get; set; } = Array.Empty<CalibrationPoint>();
     }
 
     [Serializable]
     public class StatorOffsetsConfig
     {
-        public ushort? CourseExciterS1Offset { get; set; }
-        public ushort? CourseExciterS2Offset { get; set; }
-        public ushort? CourseExciterS3Offset { get; set; }
+        public ushort? CourseExciterS1Offset { get; set; } = 156;
+        public ushort? CourseExciterS2Offset { get; set; } = 497;
+        public ushort? CourseExciterS3Offset { get; set; } = 838;
     }
 
     [Serializable]
     public class OutputChannelsConfig
     {
-        public OutputChannelConfig DIG_OUT_A { get; set; }
-        public OutputChannelConfig DIG_OUT_B { get; set; }
-        public OutputChannelConfig DIG_OUT_X { get; set; }
+        public OutputChannelConfig DIG_OUT_A { get; set; } = new OutputChannelConfig();
+        public OutputChannelConfig DIG_OUT_B { get; set; } = new OutputChannelConfig();
+        public OutputChannelConfig DIG_OUT_X { get; set; } = new OutputChannelConfig();
     }
 
     [Serializable]
     public class OutputChannelConfig
     {
-        public bool InitialValue { get; set; }
+        public bool InitialValue { get; set; } = false;
     }
 
 }

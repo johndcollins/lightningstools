@@ -169,12 +169,29 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             ConfigureOutputChannels();
             ConfigureCalibration();
             ConfigureUsbMessagingOptions();
+            ConfigureCourseAndHeadingValueHysteresisThresholds();
+            ConfigureCourse45DegreeSinCosCrossoverValue();
         }
+
+        private void ConfigureCourse45DegreeSinCosCrossoverValue()
+        {
+            if (_hsiBoard2DeviceInterface == null || _hsiBoard2DeviceConfig == null) return;
+            _hsiBoard2DeviceInterface.SetCourse45DegreeSinCosCrossoverValue(_hsiBoard2DeviceConfig.Course45DegreeSinCosCrossover);
+        }
+
+        private void ConfigureCourseAndHeadingValueHysteresisThresholds()
+        {
+            if (_hsiBoard2DeviceInterface == null || _hsiBoard2DeviceConfig == null) return;
+            _hsiBoard2DeviceInterface.SetCourseValueHysteresisThreshold(_hsiBoard2DeviceConfig.CourseValueHysteresisThreshold);
+            _hsiBoard2DeviceInterface.SetHeadingValueHysteresisThreshold(_hsiBoard2DeviceConfig.HeadingValueHysteresisThreshold);
+        }
+
         private void ConfigureUsbMessagingOptions()
         {
             if (_hsiBoard2DeviceInterface == null) return;
             _hsiBoard2DeviceInterface.SetUsbMessagingOption(UsbMessagingOption.SendOnlyOnRequest);
         }
+
         private void ConfigureStatorOffsets()
         {
             if (_hsiBoard2DeviceInterface == null || _hsiBoard2DeviceConfig?.StatorOffsetsConfig == null) return;
