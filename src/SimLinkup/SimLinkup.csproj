@@ -637,6 +637,18 @@
     <Content Include="Content\Mapping\HenkHSI\HenkF16HSIBoard2HardwareSupportModule.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="Content\Mapping\Nigel\HenkF16HSIBoard1.mapping">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Content\Mapping\Nigel\HenkF16HSIBoard1HardwareSupportModule.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Content\Mapping\Nigel\HenkF16HSIBoard2.mapping">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Content\Mapping\Nigel\HenkF16HSIBoard2HardwareSupportModule.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <None Include="Content\Mapping\Nigel\Simtek100181altimeter.mapping">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
