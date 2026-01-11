@@ -143,6 +143,8 @@
     <Compile Include="HardwareSupport\Henk\FuelFlow\HenkieF16FuelFlowIndicatorHardwareSupportModule.cs" />
     <Compile Include="HardwareSupport\Henk\HSI\Board1\HenkF16HSIBoard1HardwareSupportModule.cs" />
     <Compile Include="HardwareSupport\Henk\HSI\Board1\HenkF16HSIBoard1HardwareSupportModuleConfig.cs" />
+    <Compile Include="HardwareSupport\Henk\HSI\Board2\HenkF16HSIBoard2HardwareSupportModule.cs" />
+    <Compile Include="HardwareSupport\Henk\HSI\Board2\HenkF16HSIBoard2HardwareSupportModuleConfig.cs" />
     <Compile Include="HardwareSupport\Henk\QuadSinCos\HenkieQuadSinCosBoardHardwareSupportModuleConfig.cs" />
     <Compile Include="HardwareSupport\Henk\QuadSinCos\HenkieQuadSinCosBoardHardwareSupportModule.cs" />
     <Compile Include="HardwareSupport\Henk\SDI\HenkSDIHardwareSupportModule.cs" />
@@ -627,6 +629,12 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="Content\Mapping\Nigel\Malwin1956-3lox.mapping">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Content\Mapping\HenkHSI\HenkF16HSIBoard2.mapping">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Content\Mapping\HenkHSI\HenkF16HSIBoard2HardwareSupportModule.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <None Include="Content\Mapping\Nigel\Simtek100181altimeter.mapping">

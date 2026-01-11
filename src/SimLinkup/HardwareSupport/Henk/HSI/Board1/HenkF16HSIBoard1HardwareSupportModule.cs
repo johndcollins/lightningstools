@@ -467,7 +467,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Inputs",
                 CollectionName = "Analog Inputs",
-                FriendlyName = "Magnetic Heading",
+                FriendlyName = "Magnetic Heading (from sim)",
                 Id = $"Henk_F16_HS1_Board1__Magnetic_Heading_From_Sim",
                 Index = 0,
                 Source = this,
@@ -509,7 +509,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Inputs",
                 CollectionName = "Analog Inputs",
-                FriendlyName = "Bearing to Beacon",
+                FriendlyName = "Bearing to Beacon (from sim)",
                 Id = $"Henk_F16_HS1_Board1__Bearing_From_Sim",
                 Index = 0,
                 Source = this,
@@ -549,7 +549,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Inputs",
                 CollectionName = "Analog Inputs",
-                FriendlyName = "Course Deviation",
+                FriendlyName = "Course Deviation (from sim)",
                 Id = $"Henk_F16_HS1_Board1__Course_Deviation_From_Sim",
                 Index = 0,
                 Source = this,
@@ -569,7 +569,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Inputs",
                 CollectionName = "Analog Inputs",
-                FriendlyName = "Course Deviation Limit",
+                FriendlyName = "Course Deviation Limit (from sim)",
                 Id = $"Henk_F16_HS1_Board1__Course_Deviation_Limit_From_Sim",
                 Index = 0,
                 Source = this,
@@ -588,7 +588,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Inputs",
                 CollectionName = "Digital Inputs",
-                FriendlyName = "Deviation Flag",
+                FriendlyName = "Deviation Invalid Flag (from sim)",
                 Id = $"Henk_F16_HS1_Board1__Deviation_Flag_From_Sim",
                 Index = 0,
                 Source = this,
@@ -605,7 +605,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Inputs",
                 CollectionName = "Analog Inputs",
-                FriendlyName = "Range",
+                FriendlyName = "Range (from sim)",
                 Id = $"Henk_F16_HS1_Board1__Range_From_Sim",
                 Index = 0,
                 Source = this,
@@ -625,7 +625,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Inputs",
                 CollectionName = "Digital Inputs",
-                FriendlyName = "Range Invalid Flag",
+                FriendlyName = "Range Invalid Flag (from sim)",
                 Id = $"Henk_F16_HS1_Board1__Range_Invalid_Flag_From_Sim",
                 Index = 0,
                 Source = this,
@@ -642,7 +642,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Inputs",
                 CollectionName = "Digital Inputs",
-                FriendlyName = "TO flag",
+                FriendlyName = "TO flag (from sim)",
                 Id = $"Henk_F16_HS1_Board1__TO_Flag_From_Sim",
                 Index = 0,
                 Source = this,
@@ -659,7 +659,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Inputs",
                 CollectionName = "Digital Inputs",
-                FriendlyName = "FROM Flag",
+                FriendlyName = "FROM Flag (from sim)",
                 Id = $"Henk_F16_HS1_Board1__FROM_Flag_From_Sim",
                 Index = 0,
                 Source = this,
@@ -676,7 +676,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Inputs",
                 CollectionName = "Digital Inputs",
-                FriendlyName = "Off flag",
+                FriendlyName = "OFF flag (from sim)",
                 Id = $"Henk_F16_HS1_Board1__Off_Flag_From_Sim",
                 Index = 0,
                 Source = this,
@@ -696,7 +696,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Outputs",
                 CollectionName = "Analog Outputs",
-                FriendlyName = "Magnetic Heading",
+                FriendlyName = "Magnetic Heading (0-1023)",
                 Id = $"Henk_F16_HS1_Board1[{"0x" + _hsiBoard1DeviceAddress.ToString("X").PadLeft(2, '0')}]__Magnetic_Heading_To_Instrument",
                 Index = 0,
                 Source = this,
@@ -717,7 +717,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Outputs",
                 CollectionName = "Analog Outputs",
-                FriendlyName = "Bearing to Beacon",
+                FriendlyName = "Bearing to Beacon (0-1023)",
                 Id = $"Henk_F16_HS1_Board1[{"0x" + _hsiBoard1DeviceAddress.ToString("X").PadLeft(2, '0')}]__Bearing_To_Instrument",
                 Index = 0,
                 Source = this,
@@ -738,7 +738,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Outputs",
                 CollectionName = "Analog Outputs",
-                FriendlyName = "Range x100",
+                FriendlyName = "Range x100 (0-1023)",
                 Id = $"Henk_F16_HS1_Board1[{"0x" + _hsiBoard1DeviceAddress.ToString("X").PadLeft(2, '0')}]__Range_x100_To_Instrument",
                 Index = 0,
                 Source = this,
@@ -759,7 +759,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Outputs",
                 CollectionName = "Analog Outputs",
-                FriendlyName = "Range x10",
+                FriendlyName = "Range x10 (0-1023)",
                 Id = $"Henk_F16_HS1_Board1[{"0x" + _hsiBoard1DeviceAddress.ToString("X").PadLeft(2, '0')}]__Range_x10_To_Instrument",
                 Index = 0,
                 Source = this,
@@ -780,7 +780,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Outputs",
                 CollectionName = "Analog Outputs",
-                FriendlyName = "Range x1",
+                FriendlyName = "Range x1 (0-1023)",
                 Id = $"Henk_F16_HS1_Board1[{"0x" + _hsiBoard1DeviceAddress.ToString("X").PadLeft(2, '0')}]__Range_x1_To_Instrument",
                 Index = 0,
                 Source = this,
@@ -839,41 +839,41 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             }
             if (_rangeInputSignal != null)
             {
-                _rangeInputSignal.SignalChanged += range_InputSignalChanged;
+                _rangeInputSignal.SignalChanged += Range_InputSignalChanged;
             }
             if (_rangeInvalidFlagInputSignal != null)
             {
-                _rangeInvalidFlagInputSignal.SignalChanged += rangeInvalidFlag_InputSignalChanged;
+                _rangeInvalidFlagInputSignal.SignalChanged += RangeInvalidFlag_InputSignalChanged;
             }
 
             if (_magneticHeadingOutputSignal != null)
             {
-                _magneticHeadingOutputSignal.SignalChanged += magneticHeadingOutputSignal_SignalChanged;
+                _magneticHeadingOutputSignal.SignalChanged += MagneticHeadingOutputSignal_SignalChanged;
             }
 
             if (_bearingOutputSignal != null)
             {
-                _bearingOutputSignal.SignalChanged += bearingOutputSignal_SignalChanged;
+                _bearingOutputSignal.SignalChanged += BearingOutputSignal_SignalChanged;
             }
 
             if (_rangeOnesDigitOutputSignal != null)
             {
-                _rangeOnesDigitOutputSignal.SignalChanged += rangeOnesDigitOutputSignal_SignalChanged;
+                _rangeOnesDigitOutputSignal.SignalChanged += RangeOnesDigitOutputSignal_SignalChanged;
             }
 
             if (_rangeTensDigitOutputSignal != null)
             {
-                _rangeTensDigitOutputSignal.SignalChanged += rangeTensDigitOutputSignal_SignalChanged;
+                _rangeTensDigitOutputSignal.SignalChanged += RangeTensDigitOutputSignal_SignalChanged;
             }
 
             if (_rangeHundredsDigitOutputSignal != null)
             {
-                _rangeHundredsDigitOutputSignal.SignalChanged += rangeHundredsDigitOutputSignal_SignalChanged;
+                _rangeHundredsDigitOutputSignal.SignalChanged += RangeHundredsDigitOutputSignal_SignalChanged;
             }
 
             if (_rangeInvalidFlagOutputSignal != null)
             {
-                _rangeInvalidFlagOutputSignal.SignalChanged += rangeInvalidFlagOutputSignal_SignalChanged;
+                _rangeInvalidFlagOutputSignal.SignalChanged += RangeInvalidFlagOutputSignal_SignalChanged;
             }
 
             foreach (var digitalSignal in _digitalOutputs)
@@ -912,7 +912,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 try
                 {
-                    _rangeInputSignal.SignalChanged -= range_InputSignalChanged;
+                    _rangeInputSignal.SignalChanged -= Range_InputSignalChanged;
                 }
                 catch (RemotingException)
                 {
@@ -923,7 +923,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 try
                 {
-                    _rangeInvalidFlagInputSignal.SignalChanged -= rangeInvalidFlag_InputSignalChanged;
+                    _rangeInvalidFlagInputSignal.SignalChanged -= RangeInvalidFlag_InputSignalChanged;
                 }
                 catch (RemotingException)
                 {
@@ -934,7 +934,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 try
                 {
-                    _magneticHeadingOutputSignal.SignalChanged -= magneticHeadingOutputSignal_SignalChanged;
+                    _magneticHeadingOutputSignal.SignalChanged -= MagneticHeadingOutputSignal_SignalChanged;
                 }
                 catch (RemotingException)
                 {
@@ -945,7 +945,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 try
                 {
-                    _bearingOutputSignal.SignalChanged -= bearingOutputSignal_SignalChanged;
+                    _bearingOutputSignal.SignalChanged -= BearingOutputSignal_SignalChanged;
                 }
                 catch (RemotingException)
                 {
@@ -956,7 +956,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 try
                 {
-                    _rangeInvalidFlagOutputSignal.SignalChanged -= rangeInvalidFlagOutputSignal_SignalChanged;
+                    _rangeInvalidFlagOutputSignal.SignalChanged -= RangeInvalidFlagOutputSignal_SignalChanged;
                 }
                 catch (RemotingException)
                 {
@@ -967,7 +967,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 try
                 {
-                    _rangeOnesDigitOutputSignal.SignalChanged -= rangeOnesDigitOutputSignal_SignalChanged;
+                    _rangeOnesDigitOutputSignal.SignalChanged -= RangeOnesDigitOutputSignal_SignalChanged;
                 }
                 catch (RemotingException)
                 {
@@ -978,7 +978,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 try
                 {
-                    _rangeTensDigitOutputSignal.SignalChanged -= rangeTensDigitOutputSignal_SignalChanged;
+                    _rangeTensDigitOutputSignal.SignalChanged -= RangeTensDigitOutputSignal_SignalChanged;
                 }
                 catch (RemotingException)
                 {
@@ -988,7 +988,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 try
                 {
-                    _rangeHundredsDigitOutputSignal.SignalChanged -= rangeHundredsDigitOutputSignal_SignalChanged;
+                    _rangeHundredsDigitOutputSignal.SignalChanged -= RangeHundredsDigitOutputSignal_SignalChanged;
                 }
                 catch (RemotingException)
                 {
@@ -1007,42 +1007,42 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             }
         }
 
-        private void magneticHeadingOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        private void MagneticHeadingOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             if (_hsiBoard1DeviceInterface != null && _magneticHeadingOutputSignal != null)
             {
                 _hsiBoard1DeviceInterface.SetHeadingIndication((short)_magneticHeadingOutputSignal.State);
             }
         }
-        private void bearingOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        private void BearingOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             if (_hsiBoard1DeviceInterface != null && _bearingOutputSignal != null)
             {
                 _hsiBoard1DeviceInterface.SetBearingIndication((short)_bearingOutputSignal.State);
             }
         }
-        private void rangeOnesDigitOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        private void RangeOnesDigitOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             if (_hsiBoard1DeviceInterface != null && _rangeOnesDigitOutputSignal != null)
             {
                 _hsiBoard1DeviceInterface.SetRangeOnesDigitIndication((byte)_rangeOnesDigitOutputSignal.State);
             }
         }
-        private void rangeTensDigitOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        private void RangeTensDigitOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             if (_hsiBoard1DeviceInterface != null && _rangeTensDigitOutputSignal != null)
             {
                 _hsiBoard1DeviceInterface.SetRangeTensDigitIndication((byte)_rangeTensDigitOutputSignal.State);
             }
         }
-        private void rangeHundredsDigitOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        private void RangeHundredsDigitOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             if (_hsiBoard1DeviceInterface != null && _rangeHundredsDigitOutputSignal != null)
             {
                 _hsiBoard1DeviceInterface.SetRangeHundredsDigitIndication((byte)_rangeHundredsDigitOutputSignal.State);
             }
         }
-        private void rangeInvalidFlagOutputSignal_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
+        private void RangeInvalidFlagOutputSignal_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
         {
             if (_hsiBoard1DeviceInterface != null && _rangeInvalidFlagOutputSignal != null)
             {
@@ -1065,12 +1065,12 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
                 Log.Error(e.Message, e);
             }
         }
-        private void range_InputSignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        private void Range_InputSignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             UpdateRangeOutputValue();
         }
 
-        private void rangeInvalidFlag_InputSignalChanged(object sender, DigitalSignalChangedEventArgs args)
+        private void RangeInvalidFlag_InputSignalChanged(object sender, DigitalSignalChangedEventArgs args)
         {
             UpdateRangeInvalidFlagOutputValue();
         }

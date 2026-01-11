@@ -1,0 +1,1012 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Runtime.Remoting;
+using Common.HardwareSupport;
+using Common.MacroProgramming;
+using LightningGauges.Renderers.F16.HSI;
+using Henkie.HSI.Board2;
+using System.IO;
+using System.Linq;
+using Henkie.Common;
+using System.Globalization;
+using log4net;
+using p = Phcc;
+
+namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
+{
+    //Henk HSI 
+    public class HenkF16HSIBoard2HardwareSupportModule : HardwareSupportModuleBase, IDisposable
+    {
+
+        private static readonly ILog Log = LogManager.GetLogger(typeof(HenkF16HSIBoard2HardwareSupportModule));
+        private readonly IHorizontalSituationIndicator _renderer = new HorizontalSituationIndicator();
+        private bool _isDisposed;
+
+        //INPUT SIGNALS
+        private AnalogSignal _magneticHeadingInputSignal;
+        private AnalogSignal _bearingInputSignal;
+        private AnalogSignal _rangeInputSignal;
+        private DigitalSignal _rangeInvalidFlagInputSignal;
+        private AnalogSignal _courseInputSignal;
+        private AnalogSignal _courseDeviationInputSignal;
+        private AnalogSignal _courseDeviationLimitInputSignal;
+        private DigitalSignal _deviationFlagInputSignal;
+        private AnalogSignal _desiredHeadingFromSimInputSignal;
+        private DigitalSignal _toFlagInputSignal;
+        private DigitalSignal _fromFlagInputSignal;
+        private DigitalSignal _offFlagInputSignal;
+
+        //OUTPUT SIGNALS
+        private AnalogSignal _courseDeviationIndicatorOutputSignal;
+        private DigitalSignal _navigationWarningFlagOutputSignal;
+        private AnalogSignal _toFromFlagsOutputSignal;
+        private AnalogSignal _courseArrowPositionOutputSignal;
+        private List<DigitalSignal> _digitalOutputs = new List<DigitalSignal>();
+
+        //DEVICE CONFIG
+        private Device _hsiBoard2DeviceInterface;
+        private readonly DeviceConfig _hsiBoard2DeviceConfig;
+        private byte _hsiBoard2DeviceAddress;
+
+        private CalibrationPoint[] _courseExciterCalibrationData;
+        private CalibrationPoint[] _courseDeviationIndicatorCalibrationData;
+
+        private HenkF16HSIBoard2HardwareSupportModule(DeviceConfig hsiBoard2DeviceConfig)
+        {
+            _hsiBoard2DeviceConfig = hsiBoard2DeviceConfig;
+            if (_hsiBoard2DeviceConfig != null)
+            {
+                ConfigureDevice();
+                CreateInputSignals();
+                CreateOutputSignals();
+                RegisterForEvents();
+            }
+        }
+
+        public override AnalogSignal[] AnalogInputs => new[]
+        {
+            _magneticHeadingInputSignal,
+            _desiredHeadingFromSimInputSignal,
+            _courseInputSignal,
+            _courseDeviationInputSignal,
+            _courseDeviationLimitInputSignal,
+            _bearingInputSignal,
+            _rangeInputSignal,
+        };
+
+        public override AnalogSignal[] AnalogOutputs => new[]
+        {
+            _courseDeviationIndicatorOutputSignal,
+            _toFromFlagsOutputSignal,
+            _courseArrowPositionOutputSignal
+        };
+
+        public override DigitalSignal[] DigitalInputs => new[]
+        {
+            _offFlagInputSignal, 
+            _deviationFlagInputSignal, 
+            _rangeInvalidFlagInputSignal, 
+            _toFlagInputSignal,
+            _fromFlagInputSignal
+        };
+
+        private static OutputChannels[] DigitalOutputChannels => new[]
+        {
+            OutputChannels.DIG_OUT_A,
+            OutputChannels.DIG_OUT_B,
+            OutputChannels.DIG_OUT_X,
+        };
+
+        public override DigitalSignal[] DigitalOutputs
+        {
+            get
+            {
+                return _digitalOutputs
+                    .OrderBy(x => x.FriendlyName)
+                    .ToArray();
+            }
+        }
+
+        public override string FriendlyName =>
+                    $"Henkie F-16 HSI Interface Board #2: 0x{_hsiBoard2DeviceAddress.ToString("X").PadLeft(2, '0')} on {_hsiBoard2DeviceConfig.ConnectionType?.ToString() ?? "UNKNOWN"} [ {_hsiBoard2DeviceConfig.COMPort ?? "<UNKNOWN>"} ]";
+
+
+        public static IHardwareSupportModule[] GetInstances()
+        {
+            var toReturn = new List<IHardwareSupportModule>();
+
+            try
+            {
+                var hsmConfigFilePath = Path.Combine(Util.CurrentMappingProfileDirectory, "HenkF16HSIBoard2HardwareSupportModule.config");
+                var hsmConfig = HenkieF16HSIBoard2HardwareSupportModuleConfig.Load(hsmConfigFilePath);
+                if (hsmConfig != null)
+                {
+                    foreach (var deviceConfiguration in hsmConfig.Devices)
+                    {
+                        var hsmInstance = new HenkF16HSIBoard2HardwareSupportModule(deviceConfiguration);
+                        toReturn.Add(hsmInstance);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error(e.Message, e);
+            }
+
+            return toReturn.ToArray();
+        }
+
+        private List<DigitalSignal> CreateOutputSignalsForDigitalOutputChannels()
+        {
+            return DigitalOutputChannels
+                .Select(x => CreateOutputSignalForOutputChannelConfiguredAsDigital(x))
+                .ToList();
+        }
+        private DigitalSignal CreateOutputSignalForOutputChannelConfiguredAsDigital(OutputChannels outputChannel)
+        {
+            var thisSignal = new DigitalSignal
+            {
+
+                Category = "Outputs",
+                CollectionName = "Digital Outputs",
+                FriendlyName = $"{outputChannel} (0=OFF, 1=ON)",
+                Id = $"Henk_F16_HS1_Board2[{"0x" + _hsiBoard2DeviceAddress.ToString("X").PadLeft(2, '0')}]__{outputChannel}",
+                Index = (int)outputChannel,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = OutputChannelInitialValue(outputChannel)
+            };
+            return thisSignal;
+        }
+
+        private void ConfigureDevice()
+        {
+            ConfigureDeviceConnection();
+            ConfigureStatorOffsets();
+            ConfigureDiagnosticLEDBehavior();
+            ConfigureOutputChannels();
+            ConfigureCalibration();
+        }
+        private void ConfigureStatorOffsets()
+        {
+            if (_hsiBoard2DeviceInterface == null || _hsiBoard2DeviceConfig?.StatorOffsetsConfig == null) return;
+
+            //COURSE EXCITER stator offsets
+            try
+            {
+                var courseExciterS1StatorOffset = _hsiBoard2DeviceConfig?.StatorOffsetsConfig?.CourseExciterS1Offset ?? 241;
+                var courseExciterS2StatorOffset = _hsiBoard2DeviceConfig?.StatorOffsetsConfig?.CourseExciterS2Offset ?? 582;
+                var courseExciterS3StatorOffset = _hsiBoard2DeviceConfig?.StatorOffsetsConfig?.CourseExciterS3Offset ?? 923;
+
+                _hsiBoard2DeviceInterface.SetCourseSynchroExciterStatorCoilOffset((short)courseExciterS1StatorOffset);
+                _hsiBoard2DeviceInterface.LoadCourseSynchroExciterStatorCoilOffset(StatorSignals.S1);
+                _hsiBoard2DeviceInterface.SetCourseSynchroExciterStatorCoilOffset((short)courseExciterS2StatorOffset);
+                _hsiBoard2DeviceInterface.LoadCourseSynchroExciterStatorCoilOffset(StatorSignals.S2);
+                _hsiBoard2DeviceInterface.SetCourseSynchroExciterStatorCoilOffset((short)courseExciterS3StatorOffset);
+                _hsiBoard2DeviceInterface.LoadCourseSynchroExciterStatorCoilOffset(StatorSignals.S3);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e.Message, e);
+            }
+        }
+        private void ConfigureCalibration()
+        {
+            if (_hsiBoard2DeviceInterface == null) return;
+            _courseExciterCalibrationData = _hsiBoard2DeviceConfig?.CourseExciterCalibrationData;
+            _courseDeviationIndicatorCalibrationData = _hsiBoard2DeviceConfig?.CourseDeviationIndicatorCalibrationData;
+        }
+
+        private void ConfigureDeviceConnection()
+        {
+            try
+            {
+                if (
+                    _hsiBoard2DeviceConfig?.ConnectionType != null &&
+                    _hsiBoard2DeviceConfig.ConnectionType.Value == ConnectionType.USB &&
+                    !string.IsNullOrWhiteSpace(_hsiBoard2DeviceConfig.COMPort)
+                )
+                {
+                    ConfigureUSBConnection();
+                }
+                else if (
+                    _hsiBoard2DeviceConfig?.ConnectionType != null &&
+                    _hsiBoard2DeviceConfig.ConnectionType.Value == ConnectionType.PHCC &&
+                    !string.IsNullOrWhiteSpace(_hsiBoard2DeviceConfig.COMPort) &&
+                    !string.IsNullOrWhiteSpace(_hsiBoard2DeviceConfig.Address)
+                )
+                {
+                    ConfigurePhccConnection();
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error(e.Message, e);
+            }
+        }
+
+        private void ConfigureDiagnosticLEDBehavior()
+        {
+            if (_hsiBoard2DeviceInterface == null) return;
+
+            var diagnosticLEDBehavior = _hsiBoard2DeviceConfig?.DiagnosticLEDMode != null &&
+                _hsiBoard2DeviceConfig.DiagnosticLEDMode.HasValue
+                ? _hsiBoard2DeviceConfig.DiagnosticLEDMode.Value
+                : DiagnosticLEDMode.Heartbeat;
+            try
+            {
+                _hsiBoard2DeviceInterface.ConfigureDiagnosticLEDBehavior(diagnosticLEDBehavior);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e.Message, e);
+            }
+        }
+        private void ConfigureOutputChannels()
+        {
+            if (_hsiBoard2DeviceInterface == null) return;
+
+            try
+            {
+                _hsiBoard2DeviceInterface.SetDigitalOutputChannelValue(OutputChannels.DIG_OUT_A,
+                    OutputChannelInitialValue(OutputChannels.DIG_OUT_A));
+                _hsiBoard2DeviceInterface.SetDigitalOutputChannelValue(OutputChannels.DIG_OUT_B,
+                    OutputChannelInitialValue(OutputChannels.DIG_OUT_B));
+                _hsiBoard2DeviceInterface.SetDigitalOutputChannelValue(OutputChannels.DIG_OUT_X,
+                    OutputChannelInitialValue(OutputChannels.DIG_OUT_X));
+            }
+            catch (Exception e)
+            {
+                Log.Error(e.Message, e);
+            }
+        }
+
+        private bool OutputChannelInitialValue(OutputChannels outputChannel)
+        {
+            switch (outputChannel)
+            {
+                case OutputChannels.DIG_OUT_A:
+                    return _hsiBoard2DeviceConfig?.OutputChannelsConfig?.DIG_OUT_A?.InitialValue ?? false;
+                case OutputChannels.DIG_OUT_B:
+                    return _hsiBoard2DeviceConfig?.OutputChannelsConfig?.DIG_OUT_B?.InitialValue ?? false;
+                case OutputChannels.DIG_OUT_X:
+                    return _hsiBoard2DeviceConfig?.OutputChannelsConfig?.DIG_OUT_X?.InitialValue ?? false;
+            }
+            return false;
+        }
+        private void ConfigurePhccConnection()
+        {
+            if
+            (
+                _hsiBoard2DeviceConfig?.ConnectionType == null ||
+                _hsiBoard2DeviceConfig.ConnectionType.Value != ConnectionType.PHCC ||
+                string.IsNullOrWhiteSpace(_hsiBoard2DeviceConfig.COMPort) || string.IsNullOrWhiteSpace(_hsiBoard2DeviceConfig.Address)
+            )
+            {
+                return;
+            }
+
+            var addressString = (_hsiBoard2DeviceConfig.Address ?? "").ToLowerInvariant().Replace("0x", string.Empty).Trim();
+            var addressIsValid = byte.TryParse(addressString, NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                out var addressByte);
+            if (!addressIsValid) return;
+
+            _hsiBoard2DeviceAddress = addressByte;
+            var comPort = (_hsiBoard2DeviceConfig.COMPort ?? "").Trim();
+
+            try
+            {
+                var phccDevice = new p.Device(comPort, false);
+                _hsiBoard2DeviceInterface = new Device(phccDevice, addressByte);
+                _hsiBoard2DeviceInterface.DisableWatchdog();
+            }
+            catch (Exception e)
+            {
+                Common.Util.DisposeObject(_hsiBoard2DeviceInterface);
+                _hsiBoard2DeviceInterface = null;
+                Log.Error(e.Message, e);
+            }
+        }
+
+        private void ConfigureUSBConnection()
+        {
+            if (
+                _hsiBoard2DeviceConfig?.ConnectionType == null || _hsiBoard2DeviceConfig.ConnectionType.Value !=
+                ConnectionType.USB &&
+                string.IsNullOrWhiteSpace(_hsiBoard2DeviceConfig.COMPort)
+            )
+            {
+                return;
+            }
+
+            var addressString = (_hsiBoard2DeviceConfig.Address ?? "").ToLowerInvariant().Replace("0x", string.Empty).Trim();
+            var addressIsValid = byte.TryParse(addressString, NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                out var addressByte);
+            if (!addressIsValid) return;
+            _hsiBoard2DeviceAddress = addressByte;
+
+            try
+            {
+                var comPort = _hsiBoard2DeviceConfig.COMPort;
+                _hsiBoard2DeviceInterface = new Device(comPort);
+                _hsiBoard2DeviceInterface.DisableWatchdog();
+                _hsiBoard2DeviceInterface.ConfigureUsbDebug(false);
+            }
+            catch (Exception e)
+            {
+                Common.Util.DisposeObject(_hsiBoard2DeviceInterface);
+                _hsiBoard2DeviceInterface = null;
+                Log.Error(e.Message, e);
+            }
+        }
+
+        public override void Render(Graphics g, Rectangle destinationRectangle)
+        {
+            _renderer.InstrumentState.BearingToBeaconDegrees = (float)_bearingInputSignal.State;
+            _renderer.InstrumentState.CourseDeviationDegrees = (float)_courseDeviationInputSignal.State;
+            _renderer.InstrumentState.CourseDeviationLimitDegrees = (float)_courseDeviationLimitInputSignal.State;
+            _renderer.InstrumentState.DesiredCourseDegrees = (int)_courseInputSignal.State;
+            _renderer.InstrumentState.DesiredHeadingDegrees = (int)_desiredHeadingFromSimInputSignal.State;
+            _renderer.InstrumentState.DeviationInvalidFlag = _deviationFlagInputSignal.State;
+            _renderer.InstrumentState.DistanceToBeaconNauticalMiles = (float)_rangeInputSignal.State;
+            _renderer.InstrumentState.DmeInvalidFlag = _rangeInvalidFlagInputSignal.State;
+            _renderer.InstrumentState.FromFlag = _fromFlagInputSignal.State;
+            _renderer.InstrumentState.MagneticHeadingDegrees = (float)_magneticHeadingInputSignal.State;
+            _renderer.InstrumentState.OffFlag = _offFlagInputSignal.State;
+            _renderer.InstrumentState.ShowToFromFlag = true;
+            _renderer.InstrumentState.ToFlag = _toFlagInputSignal.State;
+            _renderer.Render(g, destinationRectangle);
+        }
+
+        private void CreateInputSignals()
+        {
+            _offFlagInputSignal = CreateOffFlagInputSignal();
+            _deviationFlagInputSignal = CreateDeviationFlagInputSignal();
+            _rangeInvalidFlagInputSignal = CreateRangeInvalidFlagInputSignal();
+            _toFlagInputSignal = CreateToFlagInputSignal();
+            _fromFlagInputSignal = CreateFromFlagInputSignal();
+            _magneticHeadingInputSignal = CreateMagneticHeadingInputSignal();
+            _desiredHeadingFromSimInputSignal = CreateDesiredHeadingFromSimInputSignal();
+            _courseInputSignal = CreateCourseInputSignal();
+            _bearingInputSignal = CreateBearingInputSignal();
+            _rangeInputSignal = CreateRangeInputSignal();
+            _courseDeviationInputSignal = CreateCourseDeviationInputSignal();
+            _courseDeviationLimitInputSignal = CreateCourseDeviationLimitInputSignal();
+        }
+
+        private AnalogSignal CreateMagneticHeadingInputSignal()
+        {
+            var thisSignal = new AnalogSignal
+            {
+                Category = "Inputs",
+                CollectionName = "Analog Inputs",
+                FriendlyName = "Magnetic Heading (from sim)",
+                Id = $"Henk_F16_HS1_Board2__Magnetic_Heading_From_Sim",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = 0,
+                IsAngle = true,
+                MinValue = 0,
+                MaxValue = 360
+            };
+            return thisSignal;
+        }
+
+        private AnalogSignal CreateDesiredHeadingFromSimInputSignal()
+        {
+            var thisSignal = new AnalogSignal
+            {
+                Category = "Inputs",
+                CollectionName = "Analog Inputs",
+                FriendlyName = "Desired Heading (from sim)",
+                Id = $"Henk_F16_HS1_Board2__Desired_Heading_From_Sim",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = 0,
+                IsAngle = true,
+                MinValue = 0,
+                MaxValue = 360
+            };
+            return thisSignal;
+        }
+
+
+        private AnalogSignal CreateBearingInputSignal()
+        {
+
+            var thisSignal = new AnalogSignal
+            {
+                Category = "Inputs",
+                CollectionName = "Analog Inputs",
+                FriendlyName = "Bearing to Beacon (from sim)",
+                Id = $"Henk_F16_HS2_Board2__Bearing_From_Sim",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = 0,
+                IsAngle = true,
+                MinValue = 0,
+                MaxValue = 360
+            };
+            return thisSignal;
+        }
+
+        private AnalogSignal CreateCourseInputSignal()
+        {
+            var thisSignal = new AnalogSignal
+            {
+                Category = "Inputs",
+                CollectionName = "Analog Inputs",
+                FriendlyName = "Course (from sim)",
+                Id = $"Henk_F16_HS1_Board2__Course_From_Sim",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = 0,
+                IsAngle = true,
+                MinValue = 0,
+                MaxValue = 360
+            };
+            return thisSignal;
+        }
+
+        private AnalogSignal CreateCourseDeviationInputSignal()
+        {
+            var thisSignal = new AnalogSignal
+            {
+                Category = "Inputs",
+                CollectionName = "Analog Inputs",
+                FriendlyName = "Course Deviation (from sim)",
+                Id = $"Henk_F16_HS1_Board2__Course_Deviation_From_Sim",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = 0,
+                IsAngle = true,
+                MinValue = -10,
+                MaxValue = 10
+            };
+            return thisSignal;
+        }
+
+        private AnalogSignal CreateCourseDeviationLimitInputSignal()
+        {
+            var thisSignal = new AnalogSignal
+            {
+                Category = "Inputs",
+                CollectionName = "Analog Inputs",
+                FriendlyName = "Course Deviation Limit (from sim)",
+                Id = $"Henk_F16_HS1_Board2__Course_Deviation_Limit_From_Sim",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = 0,
+                IsAngle = true,
+                MinValue = 0,
+                MaxValue = 10
+            };
+            return thisSignal;
+        }
+        private DigitalSignal CreateDeviationFlagInputSignal()
+        {
+            var thisSignal = new DigitalSignal
+            {
+                Category = "Inputs",
+                CollectionName = "Digital Inputs",
+                FriendlyName = "Deviation Invalid Flag (from sim)",
+                Id = $"Henk_F16_HS1_Board2__Deviation_Flag_From_Sim",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = false
+            };
+            return thisSignal;
+        }
+
+        private AnalogSignal CreateRangeInputSignal()
+        {
+            var thisSignal = new AnalogSignal
+            {
+                Category = "Inputs",
+                CollectionName = "Analog Inputs",
+                FriendlyName = "Range (from sim)",
+                Id = $"Henk_F16_HS1_Board2__Range_From_Sim",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = 0,
+                IsAngle = true,
+                MinValue = 0,
+                MaxValue = 999.9999
+            };
+            return thisSignal;
+        }
+
+        private DigitalSignal CreateRangeInvalidFlagInputSignal()
+        {
+            var thisSignal = new DigitalSignal
+            {
+                Category = "Inputs",
+                CollectionName = "Digital Inputs",
+                FriendlyName = "Range Invalid Flag (from sim)",
+                Id = $"Henk_F16_HS1_Board2__Range_Invalid_Flag_From_Sim",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = false
+            };
+            return thisSignal;
+        }
+
+        private DigitalSignal CreateToFlagInputSignal()
+        {
+            var thisSignal = new DigitalSignal
+            {
+                Category = "Inputs",
+                CollectionName = "Digital Inputs",
+                FriendlyName = "TO flag (from sim)",
+                Id = $"Henk_F16_HS1_Board2__TO_Flag_From_Sim",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = false
+            };
+            return thisSignal;
+        }
+
+        private DigitalSignal CreateFromFlagInputSignal()
+        {
+            var thisSignal = new DigitalSignal
+            {
+                Category = "Inputs",
+                CollectionName = "Digital Inputs",
+                FriendlyName = "FROM Flag (from sim)",
+                Id = $"Henk_F16_HS1_Board2__FROM_Flag_From_Sim",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = false
+            };
+            return thisSignal;
+        }
+
+        private DigitalSignal CreateOffFlagInputSignal()
+        {
+            var thisSignal = new DigitalSignal
+            {
+                Category = "Inputs",
+                CollectionName = "Digital Inputs",
+                FriendlyName = "OFF flag (from sim)",
+                Id = $"Henk_F16_HS1_Board2__Off_Flag_From_Sim",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = false
+            };
+            return thisSignal;
+        }
+
+        private AnalogSignal CreateCourseDeviationIndicatorPositionOutputSignal()
+        {
+            var thisSignal = new AnalogSignal
+            {
+                Category = "Outputs",
+                CollectionName = "Analog Outputs",
+                FriendlyName = "Course Deviation Indicator Position (0-1023)",
+                Id = $"Henk_F16_HS1_Board2[{"0x" + _hsiBoard2DeviceAddress.ToString("X").PadLeft(2, '0')}]__Course_Deviation_Indicator_Position_To_Instrument",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = 0.00,
+                IsVoltage = false,
+                IsSine = false,
+                MinValue = 0,
+                MaxValue = 1023
+            };
+            return thisSignal;
+        }
+
+        private AnalogSignal CreateCourseArrowPositionOutputSignal()
+        {
+            var thisSignal = new AnalogSignal
+            {
+                Category = "Outputs",
+                CollectionName = "Analog Outputs",
+                FriendlyName = "Course Arrow Position (0-1023)",
+                Id = $"Henk_F16_HS1_Board2[{"0x" + _hsiBoard2DeviceAddress.ToString("X").PadLeft(2, '0')}]__Course_Arrow_Position_To_Instrument",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = 0.00,
+                IsVoltage = false,
+                IsSine = false,
+                MinValue = 0,
+                MaxValue = 1023
+            };
+            return thisSignal;
+        }
+
+        private DigitalSignal CreateNavigationWarningFlagOutputSignal()
+        {
+            var thisSignal = new DigitalSignal
+            {
+                Category = "Outputs",
+                CollectionName = "Digital Outputs",
+                FriendlyName = "NAV Warning Flag",
+                Id = $"Henk_F16_HS1_Board2[{"0x" + _hsiBoard2DeviceAddress.ToString("X").PadLeft(2, '0')}]__NAV_Warning_Flag_To_Instrument",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = false
+            };
+            return thisSignal;
+        }
+
+        private AnalogSignal CreateToFromFlagsOutputSignal()
+        {
+            var thisSignal = new AnalogSignal
+            {
+                Category = "Outputs",
+                CollectionName = "Analog Outputs",
+                FriendlyName = "TO/FROM Indication (0 = none, 1 = TO, 2 = FROM)",
+                Id = $"Henk_F16_HS1_Board2[{"0x" + _hsiBoard2DeviceAddress.ToString("X").PadLeft(2, '0')}]__TO_FROM_Indication_To_Instrument",
+                Index = 0,
+                Source = this,
+                SourceFriendlyName = FriendlyName,
+                SourceAddress = null,
+                State = 0.00,
+                IsVoltage = false,
+                IsSine = false,
+                MinValue = 0,
+                MaxValue = 2
+            };
+            return thisSignal;
+        }
+
+        private void CreateOutputSignals()
+        {
+            _courseDeviationIndicatorOutputSignal = CreateCourseDeviationIndicatorPositionOutputSignal();
+            _navigationWarningFlagOutputSignal = CreateNavigationWarningFlagOutputSignal();
+            _toFromFlagsOutputSignal = CreateToFromFlagsOutputSignal();
+            _courseArrowPositionOutputSignal = CreateCourseArrowPositionOutputSignal();
+            _digitalOutputs = CreateOutputSignalsForDigitalOutputChannels();
+            _digitalOutputs.Add(_navigationWarningFlagOutputSignal);
+        }
+
+        private void RegisterForEvents()
+        {
+            if (_courseDeviationInputSignal != null)
+            {
+                _courseDeviationInputSignal.SignalChanged += CourseDeviationInputSignal_SignalChanged;
+            }
+            if (_courseDeviationLimitInputSignal != null)
+            {
+                _courseDeviationLimitInputSignal.SignalChanged += CourseDeviationLimitInputSignal_SignalChanged;
+            }
+
+            if (_courseDeviationIndicatorOutputSignal != null)
+            {
+                _courseDeviationIndicatorOutputSignal.SignalChanged += CourseDeviationIndicatorOutputSignal_SignalChanged;
+            }
+
+            if (_deviationFlagInputSignal != null)
+            {
+                _deviationFlagInputSignal.SignalChanged += DeviationFlagInputSignal_SignalChanged;
+            }
+            if (_navigationWarningFlagOutputSignal != null)
+            {
+                _navigationWarningFlagOutputSignal.SignalChanged += NavigationWarningFlagOutputSignal_SignalChanged;
+            }
+
+            if (_toFlagInputSignal != null)
+            {
+                _toFlagInputSignal.SignalChanged += ToFlagInputSignal_SignalChanged;
+            }
+            if (_fromFlagInputSignal != null)
+            {
+                _fromFlagInputSignal.SignalChanged += FromFlagInputSignal_SignalChanged;
+            }
+            if (_toFromFlagsOutputSignal != null)
+            {
+                _toFromFlagsOutputSignal.SignalChanged += ToFromFlagsOutputSignal_SignalChanged;
+            }
+
+            if (_courseInputSignal != null)
+            {
+                _courseInputSignal.SignalChanged += CourseInputSignal_SignalChanged;
+            }
+            if (_courseArrowPositionOutputSignal != null)
+            {
+                _courseArrowPositionOutputSignal.SignalChanged += CourseArrowPositionOutputSignal_SignalChanged;
+            }
+
+            foreach (var digitalSignal in _digitalOutputs)
+            {
+                digitalSignal.SignalChanged += OutputSignalForDigitalOutputChannel_SignalChanged;
+            }
+        }
+
+        private void UnregisterForEvents()
+        {
+            if (_courseDeviationInputSignal != null)
+            {
+                try
+                {
+                    _courseDeviationInputSignal.SignalChanged -= CourseDeviationInputSignal_SignalChanged;
+                }
+                catch (RemotingException) { }
+            }
+            if (_courseDeviationLimitInputSignal != null)
+            {
+                try
+                {
+                    _courseDeviationLimitInputSignal.SignalChanged -= CourseDeviationLimitInputSignal_SignalChanged;
+                }
+                catch (RemotingException) { }
+            }
+            if (_courseDeviationIndicatorOutputSignal != null)
+            {
+                try
+                {
+                    _courseDeviationIndicatorOutputSignal.SignalChanged -= CourseDeviationIndicatorOutputSignal_SignalChanged;
+                }
+                catch (RemotingException) { }
+            }
+
+            if (_deviationFlagInputSignal != null)
+            {
+                try
+                {
+                    _deviationFlagInputSignal.SignalChanged -= DeviationFlagInputSignal_SignalChanged;
+                }
+                catch (RemotingException) { }
+            }
+            if (_navigationWarningFlagOutputSignal != null)
+            {
+                try
+                {
+                    _navigationWarningFlagOutputSignal.SignalChanged -= NavigationWarningFlagOutputSignal_SignalChanged;
+                }
+                catch (RemotingException) { }
+            }
+
+            if (_toFlagInputSignal != null)
+            {
+                try
+                {
+                    _toFlagInputSignal.SignalChanged -= ToFlagInputSignal_SignalChanged;
+                }
+                catch (RemotingException) { }
+            }
+            if (_fromFlagInputSignal != null)
+            {
+                try
+                {
+                    _fromFlagInputSignal.SignalChanged -= FromFlagInputSignal_SignalChanged;
+                }
+                catch (RemotingException) { }
+            }
+            if (_toFromFlagsOutputSignal != null)
+            {
+                try
+                {
+                    _toFromFlagsOutputSignal.SignalChanged -= ToFromFlagsOutputSignal_SignalChanged;
+                }
+                catch (RemotingException) { }
+            }
+
+            if (_courseInputSignal != null)
+            {
+                try
+                {
+                    _courseInputSignal.SignalChanged -= CourseInputSignal_SignalChanged;
+                }
+                catch (RemotingException) { }
+            }
+            if (_courseArrowPositionOutputSignal != null)
+            {
+                try
+                {
+                    _courseArrowPositionOutputSignal.SignalChanged -= CourseArrowPositionOutputSignal_SignalChanged;
+                }
+                catch (RemotingException) { }
+            }
+
+            foreach (var digitalSignal in _digitalOutputs)
+            {
+                try
+                {
+                    digitalSignal.SignalChanged -= OutputSignalForDigitalOutputChannel_SignalChanged;
+                }
+                catch (RemotingException)
+                {
+                }
+            }
+        }
+
+        private void CourseDeviationInputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        {
+            CourseDeviationOrCourseDeviationLimitInputSignalsChanged();
+        }
+        private void CourseDeviationLimitInputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        {
+            CourseDeviationOrCourseDeviationLimitInputSignalsChanged();
+        }
+
+        private void CourseDeviationOrCourseDeviationLimitInputSignalsChanged()
+        {
+            if (_hsiBoard2DeviceInterface != null && _courseDeviationIndicatorOutputSignal != null && _courseDeviationInputSignal != null && _courseDeviationLimitInputSignal != null)
+            {
+                _courseDeviationIndicatorOutputSignal.State = CalibratedCourseDeviationIndicatorPositionValue(_courseDeviationInputSignal.State, _courseDeviationLimitInputSignal.State);
+            }
+        }
+
+        private void CourseDeviationIndicatorOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        {
+            if (_hsiBoard2DeviceInterface != null && _courseDeviationIndicatorOutputSignal != null)
+            {
+                _hsiBoard2DeviceInterface.SetCourseDeviationIndication((short)_courseDeviationIndicatorOutputSignal.State);
+            }
+        }
+
+        private void DeviationFlagInputSignal_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
+        {
+            if (_hsiBoard2DeviceInterface != null && _navigationWarningFlagOutputSignal != null && _deviationFlagInputSignal != null)
+            {
+                _navigationWarningFlagOutputSignal.State = _deviationFlagInputSignal.State;
+            }
+        }
+
+        private void NavigationWarningFlagOutputSignal_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
+        {
+            if (_hsiBoard2DeviceInterface != null && _navigationWarningFlagOutputSignal != null)
+            {
+                _hsiBoard2DeviceInterface.SetNavigationWarningFlagVisible(args.CurrentState);
+            }
+        }
+
+        private void FromFlagInputSignal_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
+        {
+            ToFromFlagInputSignalsChanged();
+        }
+
+        private void ToFlagInputSignal_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
+        {
+            ToFromFlagInputSignalsChanged();
+        }
+
+        private void ToFromFlagInputSignalsChanged()
+        {
+            if (_hsiBoard2DeviceInterface != null && _toFromFlagsOutputSignal != null && _toFlagInputSignal != null && _fromFlagInputSignal != null)
+            {
+                _toFromFlagsOutputSignal.State = (double)
+                    (_toFlagInputSignal.State
+                        ? ToFromFlagsState.To
+                        : _fromFlagInputSignal.State
+                            ? ToFromFlagsState.From
+                            : ToFromFlagsState.None);
+            }
+        }
+
+        private void ToFromFlagsOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        {
+            if (_hsiBoard2DeviceInterface != null && _toFromFlagsOutputSignal != null)
+            {
+                _hsiBoard2DeviceInterface.SetToFromFlagsVisible((ToFromFlagsState)(byte)_toFromFlagsOutputSignal.State);
+            }
+        }
+
+        private void CourseInputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        {
+            if (_hsiBoard2DeviceInterface != null && _courseArrowPositionOutputSignal != null && _courseInputSignal != null)
+            {
+                _courseArrowPositionOutputSignal.State = CalibratedCourseArrowPositionValue(_courseInputSignal.State);
+            }
+        }
+        private void CourseArrowPositionOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        {
+            if (_hsiBoard2DeviceInterface != null && _courseArrowPositionOutputSignal != null)
+            {
+                _hsiBoard2DeviceInterface.SetCourseArrowPosition((short)_courseArrowPositionOutputSignal.State);
+            }
+        }
+
+        private void OutputSignalForDigitalOutputChannel_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
+        {
+            if (_hsiBoard2DeviceInterface == null) return;
+            var signal = (DigitalSignal)sender;
+            var outputChannel = (OutputChannels)signal.Index;
+            try
+            {
+                _hsiBoard2DeviceInterface.SetDigitalOutputChannelValue(outputChannel, args.CurrentState);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e.Message, e);
+            }
+        }
+
+        private ushort CalibratedCourseArrowPositionValue(double courseDegrees)
+        {
+            if (_courseExciterCalibrationData == null) return (ushort)((courseDegrees / 360.0) * 1023.0);
+
+            var lowerPoint = _courseExciterCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= courseDegrees) ??
+                             new CalibrationPoint(0, 0);
+            var upperPoint =
+                _courseExciterCalibrationData
+                    .OrderBy(x => x.Input)
+                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(360, 1023);
+            var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input);
+            var outputRange = Math.Abs(upperPoint.Output - lowerPoint.Output);
+            var inputPct = inputRange != 0
+                ? (courseDegrees - lowerPoint.Input) / inputRange
+                : 1.00;
+            return (ushort)((inputPct * outputRange) + lowerPoint.Output);
+        }
+
+        private ushort CalibratedCourseDeviationIndicatorPositionValue(double courseDeviationDegrees, double courseDeviationLimitDegrees)
+        {
+            var courseDeviationPct = (courseDeviationDegrees / courseDeviationLimitDegrees);
+            if (_courseDeviationIndicatorCalibrationData == null)
+            {
+                return (ushort)(511.5 + courseDeviationPct * 511.5);
+            }
+
+            var lowerPoint = _courseDeviationIndicatorCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= courseDeviationDegrees) ??
+                             new CalibrationPoint(-1.0, 0);
+            var upperPoint =
+                _courseDeviationIndicatorCalibrationData
+                    .OrderBy(x => x.Input)
+                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(1.0, 1023);
+            var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input);
+            var outputRange = Math.Abs(upperPoint.Output - lowerPoint.Output);
+            var inputPct = inputRange != 0
+                ? (courseDeviationPct - lowerPoint.Input) / inputRange
+                : 1.00;
+            return (ushort)((inputPct * outputRange) + lowerPoint.Output);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        private void Dispose(bool disposing)
+        {
+            if (!_isDisposed)
+            {
+                if (disposing)
+                {
+                    UnregisterForEvents();
+                    Common.Util.DisposeObject(_renderer);
+                }
+            }
+            _isDisposed = true;
+        }
+
+        ~HenkF16HSIBoard2HardwareSupportModule()
+        {
+            Dispose(false);
+        }
+    }
+}
