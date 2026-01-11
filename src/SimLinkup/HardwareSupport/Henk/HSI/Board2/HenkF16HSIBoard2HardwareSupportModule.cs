@@ -860,11 +860,17 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             }
         }
 
+        private short? _lastCourseDeviationIndicatorState = null;
         private void CourseDeviationIndicatorOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             if (_hsiBoard2DeviceInterface != null && _courseDeviationIndicatorOutputSignal != null)
             {
-                _hsiBoard2DeviceInterface.SetCourseDeviationIndication((short)_courseDeviationIndicatorOutputSignal.State);
+                var newCourseDeviationIndicatorState = (short)_courseDeviationIndicatorOutputSignal.State;
+                if (newCourseDeviationIndicatorState != _lastCourseDeviationIndicatorState)
+                {
+                    _hsiBoard2DeviceInterface.SetCourseDeviationIndication(newCourseDeviationIndicatorState);
+                    _lastCourseDeviationIndicatorState = newCourseDeviationIndicatorState;
+                }
             }
         }
 
@@ -922,11 +928,17 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 _courseArrowPositionOutputSignal.State = CalibratedCourseArrowPositionValue(_courseInputSignal.State);
             }
         }
+        private short? _lastCourseArrowPositionState = null;
         private void CourseArrowPositionOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             if (_hsiBoard2DeviceInterface != null && _courseArrowPositionOutputSignal != null)
             {
-                _hsiBoard2DeviceInterface.SetCourseArrowPosition((short)_courseArrowPositionOutputSignal.State);
+                var newCourseArrowPositionState = (short)_courseArrowPositionOutputSignal.State;
+                if (newCourseArrowPositionState != _lastCourseArrowPositionState)
+                {
+                    _hsiBoard2DeviceInterface.SetCourseArrowPosition(newCourseArrowPositionState);
+                    _lastCourseArrowPositionState = newCourseArrowPositionState;
+                }
             }
         }
 

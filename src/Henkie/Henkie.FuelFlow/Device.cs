@@ -18,7 +18,7 @@ namespace Henkie.FuelFlow
 
 
         private bool _isDisposed;
-        private ICommandDispatcher _commandDispatcher;
+        private readonly ICommandDispatcher _commandDispatcher;
         /// <summary>
         ///   Creates an instance of the <see cref = "Device" /> class.
         /// </summary>

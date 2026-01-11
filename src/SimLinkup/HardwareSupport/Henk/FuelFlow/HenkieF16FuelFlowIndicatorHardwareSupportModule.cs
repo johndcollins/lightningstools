@@ -424,7 +424,7 @@ namespace SimLinkup.HardwareSupport.Henk.FuelFlow
             _renderer.Render(g, destinationRectangle);
         }
 
-        private void fuelFlow_InputSignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        private void FuelFlow_InputSignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             UpdateFuelFlowOutputValues();
         }
@@ -471,7 +471,7 @@ namespace SimLinkup.HardwareSupport.Henk.FuelFlow
         {
             if (_fuelFlowInputSignal != null)
             {
-                _fuelFlowInputSignal.SignalChanged += fuelFlow_InputSignalChanged;
+                _fuelFlowInputSignal.SignalChanged += FuelFlow_InputSignalChanged;
             }
             if (_positionOutputSignal != null)
             {
@@ -491,7 +491,7 @@ namespace SimLinkup.HardwareSupport.Henk.FuelFlow
             {
                 try
                 {
-                    _fuelFlowInputSignal.SignalChanged -= fuelFlow_InputSignalChanged;
+                    _fuelFlowInputSignal.SignalChanged -= FuelFlow_InputSignalChanged;
                 }
                 catch (RemotingException)
                 {

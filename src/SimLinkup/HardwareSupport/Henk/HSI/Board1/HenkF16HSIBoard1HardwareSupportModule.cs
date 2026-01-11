@@ -1007,41 +1007,76 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             }
         }
 
+        private short? _lastMagneticHeadingIndicationState = null;
         private void MagneticHeadingOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             if (_hsiBoard1DeviceInterface != null && _magneticHeadingOutputSignal != null)
             {
-                _hsiBoard1DeviceInterface.SetHeadingIndication((short)_magneticHeadingOutputSignal.State);
+                var newMagneticHeadingIndicationState = (short)_magneticHeadingOutputSignal.State;
+                if (newMagneticHeadingIndicationState != _lastMagneticHeadingIndicationState)
+                {
+                    _hsiBoard1DeviceInterface.SetHeadingIndication(newMagneticHeadingIndicationState);
+                    _lastMagneticHeadingIndicationState = newMagneticHeadingIndicationState;
+                }
             }
         }
+
+        private short? _lastBearingIndicationState = null;
         private void BearingOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             if (_hsiBoard1DeviceInterface != null && _bearingOutputSignal != null)
             {
-                _hsiBoard1DeviceInterface.SetBearingIndication((short)_bearingOutputSignal.State);
+                var newBearingIndicationState = (short)_bearingOutputSignal.State;
+                if (newBearingIndicationState != _lastBearingIndicationState)
+                {
+                    _hsiBoard1DeviceInterface.SetBearingIndication(newBearingIndicationState);
+                    _lastBearingIndicationState = newBearingIndicationState;
+                }
             }
         }
+
+        private short? _lastRangeOnesDigitIndicationState = null;
         private void RangeOnesDigitOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             if (_hsiBoard1DeviceInterface != null && _rangeOnesDigitOutputSignal != null)
             {
-                _hsiBoard1DeviceInterface.SetRangeOnesDigitIndication((byte)_rangeOnesDigitOutputSignal.State);
+                var newRangeOnesDigitIndicationState = (short)_rangeOnesDigitOutputSignal.State;
+                if (newRangeOnesDigitIndicationState != _lastRangeOnesDigitIndicationState)
+                {
+                    _hsiBoard1DeviceInterface.SetRangeOnesDigitIndication(newRangeOnesDigitIndicationState);
+                    _lastRangeOnesDigitIndicationState = newRangeOnesDigitIndicationState;
+                }
             }
         }
+
+        private short? _lastRangeTensDigitIndicationState = null;
         private void RangeTensDigitOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             if (_hsiBoard1DeviceInterface != null && _rangeTensDigitOutputSignal != null)
             {
-                _hsiBoard1DeviceInterface.SetRangeTensDigitIndication((byte)_rangeTensDigitOutputSignal.State);
+                var newRangeTensDigitIndicationState = (short)_rangeTensDigitOutputSignal.State;
+                if (newRangeTensDigitIndicationState != _lastRangeTensDigitIndicationState)
+                {
+                    _hsiBoard1DeviceInterface.SetRangeTensDigitIndication(newRangeTensDigitIndicationState);
+                    _lastRangeTensDigitIndicationState = newRangeTensDigitIndicationState;
+                }
             }
         }
+
+        private short? _lastRangeHundredsDigitIndicationState = null;
         private void RangeHundredsDigitOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             if (_hsiBoard1DeviceInterface != null && _rangeHundredsDigitOutputSignal != null)
             {
-                _hsiBoard1DeviceInterface.SetRangeHundredsDigitIndication((byte)_rangeHundredsDigitOutputSignal.State);
+                var newRangeHundredsDigitIndicationState = (short)_rangeHundredsDigitOutputSignal.State;
+                if (newRangeHundredsDigitIndicationState != _lastRangeHundredsDigitIndicationState)
+                {
+                    _hsiBoard1DeviceInterface.SetRangeHundredsDigitIndication(newRangeHundredsDigitIndicationState);
+                    _lastRangeHundredsDigitIndicationState = newRangeHundredsDigitIndicationState;
+                }
             }
         }
+
         private void RangeInvalidFlagOutputSignal_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
         {
             if (_hsiBoard1DeviceInterface != null && _rangeInvalidFlagOutputSignal != null)
@@ -1065,6 +1100,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
                 Log.Error(e.Message, e);
             }
         }
+        
         private void Range_InputSignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             UpdateRangeOutputValue();
@@ -1079,12 +1115,14 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
         {
             UpdateDirectionalOutputs();
         }
+        
         private void UpdateDirectionalOutputs()
         {
             UpdateMagneticHeadingOutputValue();
             UpdateBearingOutputValue();
         }
-            private void UpdateBearingOutputValue()
+        
+        private void UpdateBearingOutputValue()
         {
             if (_bearingInputSignal == null || _bearingOutputSignal == null || _magneticHeadingInputSignal == null) 
             {
