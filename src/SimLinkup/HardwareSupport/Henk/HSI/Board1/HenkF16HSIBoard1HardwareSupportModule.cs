@@ -682,7 +682,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
                 Source = this,
                 SourceFriendlyName = FriendlyName,
                 SourceAddress = null,
-                State = false
+                State = true
             };
             return thisSignal;
         }
@@ -1086,13 +1086,15 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
         }
             private void UpdateBearingOutputValue()
         {
-            if (_bearingInputSignal == null || _bearingOutputSignal == null) 
+            if (_bearingInputSignal == null || _bearingOutputSignal == null || _magneticHeadingInputSignal == null) 
             {
                 return;
             }
             var bearingToBeaconDegrees = _bearingInputSignal.State;
             var magneticHeadingDegrees = _magneticHeadingInputSignal.State;
-            _bearingOutputSignal.State = CalibratedBearingValue(-(magneticHeadingDegrees - bearingToBeaconDegrees));
+            var adjustedBearingValue = -(magneticHeadingDegrees - bearingToBeaconDegrees) % 360.00;
+            if (adjustedBearingValue <0) adjustedBearingValue = 360.00 - Math.Abs(adjustedBearingValue);
+            _bearingOutputSignal.State = CalibratedBearingValue(adjustedBearingValue);
         }
 
         private void UpdateMagneticHeadingOutputValue()
@@ -1101,7 +1103,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 return;
             }
-            var magneticHeadingDegrees = _magneticHeadingInputSignal.State;
+            var magneticHeadingDegrees = _magneticHeadingInputSignal.State % 360.00;
             _magneticHeadingOutputSignal.State = CalibratedHeadingValue(magneticHeadingDegrees);
         }
 
@@ -1169,8 +1171,8 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
                 _bearingCalibrationData
                     .OrderBy(x => x.Input)
                     .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(360, 1023);
-            var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input);
-            var outputRange = Math.Abs(upperPoint.Output - lowerPoint.Output);
+            var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input) * 1.00;
+            var outputRange = Math.Abs(upperPoint.Output - lowerPoint.Output) * 1.00;
             var inputPct = inputRange != 0
                 ? (bearing - lowerPoint.Input) / inputRange
                 : 1.00;
@@ -1184,7 +1186,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             var lowerPoint = _rangeOnesDigitCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= rangeOnesDigit) ??
                              new CalibrationPoint(0, 0);
             var upperPoint =
-                _bearingCalibrationData
+                _rangeOnesDigitCalibrationData
                     .OrderBy(x => x.Input)
                     .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(10, 255);
             var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input);
@@ -1202,7 +1204,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             var lowerPoint = _rangeTensDigitCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= rangeTensDigit) ??
                              new CalibrationPoint(0, 0);
             var upperPoint =
-                _bearingCalibrationData
+                _rangeTensDigitCalibrationData
                     .OrderBy(x => x.Input)
                     .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(10, 255);
             var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input);
@@ -1220,7 +1222,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             var lowerPoint = _rangeHundredsDigitCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= rangeHundredsDigit) ??
                              new CalibrationPoint(0, 0);
             var upperPoint =
-                _bearingCalibrationData
+                _rangeHundredsDigitCalibrationData
                     .OrderBy(x => x.Input)
                     .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(10, 255);
             var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input);

@@ -597,7 +597,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 Source = this,
                 SourceFriendlyName = FriendlyName,
                 SourceAddress = null,
-                State = false
+                State = true
             };
             return thisSignal;
         }
@@ -614,7 +614,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 Source = this,
                 SourceFriendlyName = FriendlyName,
                 SourceAddress = null,
-                State = 0.00,
+                State = CalibratedCourseDeviationIndicatorPositionValue(courseDeviationDegrees: 0, courseDeviationLimitDegrees: 0),
                 IsVoltage = false,
                 IsSine = false,
                 MinValue = 0,
@@ -635,7 +635,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 Source = this,
                 SourceFriendlyName = FriendlyName,
                 SourceAddress = null,
-                State = 0.00,
+                State = 0,
                 IsVoltage = false,
                 IsSine = false,
                 MinValue = 0,
@@ -673,7 +673,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 Source = this,
                 SourceFriendlyName = FriendlyName,
                 SourceAddress = null,
-                State = 0.00,
+                State = 0,
                 IsVoltage = false,
                 IsSine = false,
                 MinValue = 0,
