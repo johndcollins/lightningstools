@@ -15,17 +15,28 @@ namespace Henkie.Common
         {
             SerialPortConnection = new SerialPortConnection(COMPort);
         }
-        public void SendCommand(byte subaddress, byte? data=null)
+        public void SendCommand(byte subaddress, byte? data=null, bool usePseudoCOBS = false)
         {
             if (SerialPortConnection != null)
             {
                 if (data != null)
                 {
-                    SerialPortConnection.Write(new[] { subaddress, data.Value }, 0, 2);
+                    if (!usePseudoCOBS)
+                    {
+                        SerialPortConnection.Write(new[] { subaddress, data.Value }, 0, 2);
+                        //Console.WriteLine($"Writing command with subAddress:{subaddress} with value byte:{data.Value} to {SerialPortConnection.COMPort}");
+                    }
+                    else
+                    {
+                        var checksum = (byte)((subaddress + data.Value) & 0x00FF);
+                        var delimiter = (byte)0xFF;
+                        SerialPortConnection.Write(new[] { subaddress, data.Value, checksum, delimiter }, 0, 4);
+                        //Console.WriteLine($"Writing command with subAddress:{subaddress} with value byte:{data.Value}, checksum:{checksum}, delimiter:{delimiter} to {SerialPortConnection.COMPort}");
+                    }
                 }
             }
         }
-        public byte[] SendQuery(byte subaddress, byte? data = null, int bytesToRead = 0)
+        public byte[] SendQuery(byte subaddress, byte? data = null, int bytesToRead = 0, bool usePsuedoCOBS = false)
         {
             if (bytesToRead <0)
             {
@@ -37,7 +48,7 @@ namespace Henkie.Common
                 {
                     SerialPortConnection.DiscardInputBuffer();
                 }
-                SendCommand(subaddress, data);
+                SendCommand(subaddress, data, usePsuedoCOBS);
                 if (bytesToRead > 0)
                 {
                     var readBuffer = new byte[bytesToRead];

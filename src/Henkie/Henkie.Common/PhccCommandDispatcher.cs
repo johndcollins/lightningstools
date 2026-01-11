@@ -12,12 +12,12 @@ namespace Henkie.Common
             _phccDevice = phccDevice;
             _address = address;
         }
-        public byte[] SendQuery(byte subaddress, byte? data = null, int bytesToRead=0)
+        public byte[] SendQuery(byte subaddress, byte? data = null, int bytesToRead=0, bool usePsuedoCOBS = false)
         {
             throw new InvalidOperationException();
         }
 
-        public void SendCommand(byte subaddress, byte? data=null)
+        public void SendCommand(byte subaddress, byte? data=null, bool usePsuedoCOBS = false)
         {
             _phccDevice?.DoaSendRaw(_address, subaddress, data ?? 0x00);
         }

@@ -298,11 +298,11 @@ namespace Henkie.HSI.Board2
 
         public void SendCommand(CommandSubaddress subaddress, byte? data=null)
         {
-            _commandDispatcher.SendCommand((byte)subaddress, data);
+            _commandDispatcher.SendCommand((byte)subaddress, data, usePsuedoCOBS: true);
         }
         public byte[] SendQuery(CommandSubaddress subaddress, byte? data = null, int bytesToRead = 0)
         {
-            return _commandDispatcher.SendQuery((byte)subaddress, data, bytesToRead);
+            return _commandDispatcher.SendQuery((byte)subaddress, data, bytesToRead, usePsuedoCOBS: true);
         }
         #endregion
 

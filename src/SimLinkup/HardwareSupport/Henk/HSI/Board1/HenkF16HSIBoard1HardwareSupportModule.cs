@@ -575,7 +575,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
                 Source = this,
                 SourceFriendlyName = FriendlyName,
                 SourceAddress = null,
-                State = 0,
+                State = 10,
                 IsAngle = true,
                 MinValue = 0,
                 MaxValue = 10
@@ -1093,7 +1093,10 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             var outputChannel = OutputChannel(channelNumber);
             try
             {
-                _hsiBoard1DeviceInterface.SetDigitalOutputChannelValue(outputChannel, args.CurrentState);
+                if (outputChannel > 0)
+                {
+                    _hsiBoard1DeviceInterface.SetDigitalOutputChannelValue(outputChannel, args.CurrentState);
+                }
             }
             catch (Exception e)
             {
@@ -1190,7 +1193,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             var upperPoint =
                 _headingCalibrationData
                     .OrderBy(x => x.Input)
-                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(360, 1023);
+                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(360.0, 1023.0);
             var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input);
             var outputRange = Math.Abs(upperPoint.Output - lowerPoint.Output);
             var inputPct = inputRange != 0
@@ -1208,7 +1211,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             var upperPoint =
                 _bearingCalibrationData
                     .OrderBy(x => x.Input)
-                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(360, 1023);
+                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(360.0, 1023.0);
             var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input) * 1.00;
             var outputRange = Math.Abs(upperPoint.Output - lowerPoint.Output) * 1.00;
             var inputPct = inputRange != 0
@@ -1217,58 +1220,58 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             return (ushort)((inputPct * outputRange) + lowerPoint.Output);
         }
 
-        private byte CalibratedRangeOnesDigitValue(double rangeOnesDigit)
+        private ushort CalibratedRangeOnesDigitValue(double rangeOnesDigit)
         {
-            if (_rangeOnesDigitCalibrationData == null) return (byte)((rangeOnesDigit / 10.0) * 255.0);
+            if (_rangeOnesDigitCalibrationData == null) return (ushort)((rangeOnesDigit / 10.0) * 1023.0);
 
             var lowerPoint = _rangeOnesDigitCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= rangeOnesDigit) ??
                              new CalibrationPoint(0, 0);
             var upperPoint =
                 _rangeOnesDigitCalibrationData
                     .OrderBy(x => x.Input)
-                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(10, 255);
+                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(10.0, 1023.0);
             var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input);
             var outputRange = Math.Abs(upperPoint.Output - lowerPoint.Output);
             var inputPct = inputRange != 0
                 ? (rangeOnesDigit - lowerPoint.Input) / inputRange
                 : 1.00;
-            return (byte)((inputPct * outputRange) + lowerPoint.Output);
+            return (ushort)((inputPct * outputRange) + lowerPoint.Output);
         }
 
-        private byte CalibratedRangeTensDigitValue(double rangeTensDigit)
+        private ushort CalibratedRangeTensDigitValue(double rangeTensDigit)
         {
-            if (_rangeTensDigitCalibrationData == null) return (byte)((rangeTensDigit / 10.0) * 255.0);
+            if (_rangeTensDigitCalibrationData == null) return (ushort)((rangeTensDigit / 10.0) * 1023.0);
 
             var lowerPoint = _rangeTensDigitCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= rangeTensDigit) ??
                              new CalibrationPoint(0, 0);
             var upperPoint =
                 _rangeTensDigitCalibrationData
                     .OrderBy(x => x.Input)
-                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(10, 255);
+                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(10.0, 1023.0);
             var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input);
             var outputRange = Math.Abs(upperPoint.Output - lowerPoint.Output);
             var inputPct = inputRange != 0
                 ? (rangeTensDigit - lowerPoint.Input) / inputRange
                 : 1.00;
-            return (byte)((inputPct * outputRange) + lowerPoint.Output);
+            return (ushort)((inputPct * outputRange) + lowerPoint.Output);
         }
 
-        private byte CalibratedRangeHundredsDigitValue(double rangeHundredsDigit)
+        private ushort CalibratedRangeHundredsDigitValue(double rangeHundredsDigit)
         {
-            if (_rangeHundredsDigitCalibrationData == null) return (byte)((rangeHundredsDigit / 10.0) * 255.0);
+            if (_rangeHundredsDigitCalibrationData == null) return (ushort)((rangeHundredsDigit / 10.0) * 1023.0);
 
             var lowerPoint = _rangeHundredsDigitCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= rangeHundredsDigit) ??
                              new CalibrationPoint(0, 0);
             var upperPoint =
                 _rangeHundredsDigitCalibrationData
                     .OrderBy(x => x.Input)
-                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(10, 255);
+                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(10.0, 1023.0);
             var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input);
             var outputRange = Math.Abs(upperPoint.Output - lowerPoint.Output);
             var inputPct = inputRange != 0
                 ? (rangeHundredsDigit - lowerPoint.Input) / inputRange
                 : 1.00;
-            return (byte)((inputPct * outputRange) + lowerPoint.Output);
+            return (ushort)((inputPct * outputRange) + lowerPoint.Output);
         }
 
         public void Dispose()

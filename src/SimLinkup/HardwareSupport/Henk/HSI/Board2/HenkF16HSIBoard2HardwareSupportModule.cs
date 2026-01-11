@@ -513,7 +513,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 Source = this,
                 SourceFriendlyName = FriendlyName,
                 SourceAddress = null,
-                State = 0,
+                State = 10,
                 IsAngle = true,
                 MinValue = 0,
                 MaxValue = 10
@@ -637,7 +637,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 Source = this,
                 SourceFriendlyName = FriendlyName,
                 SourceAddress = null,
-                State = CalibratedCourseDeviationIndicatorPositionValue(courseDeviationDegrees: 0, courseDeviationLimitDegrees: 0),
+                State = 10,
                 IsVoltage = false,
                 IsSine = false,
                 MinValue = 0,
@@ -679,7 +679,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 Source = this,
                 SourceFriendlyName = FriendlyName,
                 SourceAddress = null,
-                State = false
+                State = true
             };
             return thisSignal;
         }
@@ -879,7 +879,8 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
         {
             if (_hsiBoard2DeviceInterface != null && _courseDeviationIndicatorOutputSignal != null && _courseDeviationInputSignal != null && _courseDeviationLimitInputSignal != null)
             {
-                _courseDeviationIndicatorOutputSignal.State = CalibratedCourseDeviationIndicatorPositionValue(_courseDeviationInputSignal.State, _courseDeviationLimitInputSignal.State);
+                var calibratedValue = CalibratedCourseDeviationIndicatorPositionValue(_courseDeviationInputSignal.State, _courseDeviationLimitInputSignal.State);
+                _courseDeviationIndicatorOutputSignal.State = calibratedValue;
             }
         }
 
@@ -972,7 +973,10 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             var outputChannel = (OutputChannels)signal.Index;
             try
             {
-                _hsiBoard2DeviceInterface.SetDigitalOutputChannelValue(outputChannel, args.CurrentState);
+                if (outputChannel > 0)
+                {
+                    _hsiBoard2DeviceInterface.SetDigitalOutputChannelValue(outputChannel, args.CurrentState);
+                }
             }
             catch (Exception e)
             {
@@ -1000,13 +1004,16 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
 
         private ushort CalibratedCourseDeviationIndicatorPositionValue(double courseDeviationDegrees, double courseDeviationLimitDegrees)
         {
+            if (double.IsNaN(courseDeviationDegrees)) courseDeviationDegrees = 0;
+            if (double.IsNaN(courseDeviationLimitDegrees) || courseDeviationLimitDegrees == 0) courseDeviationLimitDegrees = 10;
+
             var courseDeviationPct = (courseDeviationDegrees / courseDeviationLimitDegrees);
             if (_courseDeviationIndicatorCalibrationData == null)
             {
                 return (ushort)(511.5 + courseDeviationPct * 511.5);
             }
 
-            var lowerPoint = _courseDeviationIndicatorCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= courseDeviationDegrees) ??
+            var lowerPoint = _courseDeviationIndicatorCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= courseDeviationPct) ??
                              new CalibrationPoint(-1.0, 0);
             var upperPoint =
                 _courseDeviationIndicatorCalibrationData

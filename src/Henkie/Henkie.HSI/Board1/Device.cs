@@ -211,12 +211,12 @@ namespace Henkie.HSI.Board1
                 default:
                     throw new ArgumentOutOfRangeException(nameof(statorSignal));
             }
-            SendCommand(CommandSubaddress.LOAD_BEARING_OFFSET_STATOR_COIL_MASK, val);
+            SendCommand(CommandSubaddress.LOAD_HEADING_OFFSET_STATOR_COIL_MASK, val);
         }
 
         public void LoadRangeOffsetStatorCoilMask(RangeDigitStatorCoils statorSignal)
         {
-            SendCommand(CommandSubaddress.LOAD_BEARING_OFFSET_STATOR_COIL_MASK, (byte)statorSignal);
+            SendCommand(CommandSubaddress.LOAD_RANGE_OFFSET_STATOR_COIL_MASK, (byte)statorSignal);
         }
 
 
@@ -372,11 +372,11 @@ namespace Henkie.HSI.Board1
 
         public void SendCommand(CommandSubaddress subaddress, byte? data=null)
         {
-            _commandDispatcher.SendCommand((byte)subaddress, data);
+            _commandDispatcher.SendCommand((byte)subaddress, data, usePsuedoCOBS: true);
         }
         public byte[] SendQuery(CommandSubaddress subaddress, byte? data = null, int bytesToRead = 0)
         {
-            return _commandDispatcher.SendQuery((byte)subaddress, data, bytesToRead);
+            return _commandDispatcher.SendQuery((byte)subaddress, data, bytesToRead, usePsuedoCOBS: true);
         }
         #endregion
 
