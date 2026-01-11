@@ -168,6 +168,12 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             ConfigureDiagnosticLEDBehavior();
             ConfigureOutputChannels();
             ConfigureCalibration();
+            ConfigureUsbMessagingOptions();
+        }
+        private void ConfigureUsbMessagingOptions()
+        {
+            if (_hsiBoard2DeviceInterface == null) return;
+            _hsiBoard2DeviceInterface.SetUsbMessagingOption(UsbMessagingOption.SendOnlyOnRequest);
         }
         private void ConfigureStatorOffsets()
         {
