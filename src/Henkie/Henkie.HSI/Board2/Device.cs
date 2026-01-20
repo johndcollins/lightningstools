@@ -298,11 +298,13 @@ namespace Henkie.HSI.Board2
 
         public void SendCommand(CommandSubaddress subaddress, byte? data=null)
         {
-            _commandDispatcher.SendCommand((byte)subaddress, data, usePsuedoCOBS: true);
+            if (data == 0xFF) data = 0xFE;
+            _commandDispatcher.SendCommand((byte)subaddress, data, sendChecksumAndDelimiter: ConnectionType == ConnectionType.USB);
         }
         public byte[] SendQuery(CommandSubaddress subaddress, byte? data = null, int bytesToRead = 0)
         {
-            return _commandDispatcher.SendQuery((byte)subaddress, data, bytesToRead, usePsuedoCOBS: true);
+            if (data == 0xFF) data = 0xFE;
+            return _commandDispatcher.SendQuery((byte)subaddress, data, bytesToRead, sendChecksumAndDelimiter: ConnectionType == ConnectionType.USB);
         }
         #endregion
 

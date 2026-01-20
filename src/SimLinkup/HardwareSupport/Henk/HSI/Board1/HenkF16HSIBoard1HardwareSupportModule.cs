@@ -1131,8 +1131,13 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 return;
             }
-            var bearingToBeaconDegrees = _bearingInputSignal.State;
-            var magneticHeadingDegrees = _magneticHeadingInputSignal.State;
+            var bearingToBeaconDegrees = double.IsInfinity(_bearingInputSignal.State) || double.IsNaN(_bearingInputSignal.State)
+                ? 0
+                : _bearingInputSignal.State;
+            var magneticHeadingDegrees = double.IsInfinity(_magneticHeadingInputSignal.State) || double.IsNaN(_magneticHeadingInputSignal.State)
+                ? 0
+                : _magneticHeadingInputSignal.State % 360.00;
+
             var adjustedBearingValue = -(magneticHeadingDegrees - bearingToBeaconDegrees) % 360.00;
             if (adjustedBearingValue <0) adjustedBearingValue = 360.00 - Math.Abs(adjustedBearingValue);
             _bearingOutputSignal.State = CalibratedBearingValue(adjustedBearingValue);
@@ -1144,7 +1149,10 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 return;
             }
-            var magneticHeadingDegrees = _magneticHeadingInputSignal.State % 360.00;
+
+            var magneticHeadingDegrees = double.IsInfinity(_magneticHeadingInputSignal.State) ||double.IsNaN(_magneticHeadingInputSignal.State) 
+                ? 0
+                : _magneticHeadingInputSignal.State % 360.00;
             _magneticHeadingOutputSignal.State = CalibratedHeadingValue(magneticHeadingDegrees);
         }
 
@@ -1186,6 +1194,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
 
         private ushort CalibratedHeadingValue(double heading)
         {
+            if (double.IsNaN(heading) || double.IsInfinity(heading)) heading = 0;
             if (_headingCalibrationData == null) return (ushort)((heading / 360.0) * 1023.0);
 
             var lowerPoint = _headingCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= heading) ??
@@ -1204,6 +1213,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
 
         private ushort CalibratedBearingValue(double bearing)
         {
+            if (double.IsInfinity(bearing) || double.IsNaN(bearing)) bearing = 0;
             if (_bearingCalibrationData == null) return (ushort)((bearing / 360.0) * 1023.0);
 
             var lowerPoint = _bearingCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= bearing) ??

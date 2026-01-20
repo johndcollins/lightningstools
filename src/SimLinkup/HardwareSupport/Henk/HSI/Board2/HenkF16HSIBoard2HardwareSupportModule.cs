@@ -761,6 +761,10 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             {
                 _courseArrowPositionOutputSignal.SignalChanged += CourseArrowPositionOutputSignal_SignalChanged;
             }
+            if (_magneticHeadingInputSignal != null)
+            {
+                _magneticHeadingInputSignal.SignalChanged += MagneticHeadingInputSignal_SignalChanged;
+            }
 
             foreach (var digitalSignal in _digitalOutputs)
             {
@@ -777,6 +781,15 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                     _courseDeviationInputSignal.SignalChanged -= CourseDeviationInputSignal_SignalChanged;
                 }
                 catch (RemotingException) { }
+            }
+            if (_magneticHeadingInputSignal != null)
+            {
+                try
+                {
+                    _magneticHeadingInputSignal.SignalChanged -= MagneticHeadingInputSignal_SignalChanged;
+                }
+                catch (RemotingException) { }
+
             }
             if (_courseDeviationLimitInputSignal != null)
             {
@@ -870,6 +883,13 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
         {
             CourseDeviationOrCourseDeviationLimitInputSignalsChanged();
         }
+        private void MagneticHeadingInputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
+        {
+            if (_hsiBoard2DeviceInterface != null && _courseArrowPositionOutputSignal != null && _courseInputSignal != null && _magneticHeadingInputSignal != null)
+            {
+                _courseArrowPositionOutputSignal.State = CalibratedCourseArrowPositionValue(_courseInputSignal.State, _magneticHeadingInputSignal.State);
+            }
+        }
         private void CourseDeviationLimitInputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             CourseDeviationOrCourseDeviationLimitInputSignalsChanged();
@@ -947,9 +967,9 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
 
         private void CourseInputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
-            if (_hsiBoard2DeviceInterface != null && _courseArrowPositionOutputSignal != null && _courseInputSignal != null)
+            if (_hsiBoard2DeviceInterface != null && _courseArrowPositionOutputSignal != null && _courseInputSignal != null && _magneticHeadingInputSignal != null)
             {
-                _courseArrowPositionOutputSignal.State = CalibratedCourseArrowPositionValue(_courseInputSignal.State);
+                _courseArrowPositionOutputSignal.State = CalibratedCourseArrowPositionValue(_courseInputSignal.State, _magneticHeadingInputSignal.State);
             }
         }
         private short? _lastCourseArrowPositionState = null;
@@ -984,11 +1004,16 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             }
         }
 
-        private ushort CalibratedCourseArrowPositionValue(double courseDegrees)
+        private ushort CalibratedCourseArrowPositionValue(double courseDegrees, double magneticHeadingDegrees)
         {
-            if (_courseExciterCalibrationData == null) return (ushort)((courseDegrees / 360.0) * 1023.0);
+            if (double.IsNaN(courseDegrees) || double.IsInfinity(courseDegrees)) courseDegrees = 0;
+            if (double.IsNaN(magneticHeadingDegrees) || double.IsInfinity(magneticHeadingDegrees)) magneticHeadingDegrees = 0;
 
-            var lowerPoint = _courseExciterCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= courseDegrees) ??
+            var courseDegreesAdjustedForMagneticHeading = -magneticHeadingDegrees + courseDegrees;
+
+            if (_courseExciterCalibrationData == null) return (ushort)((courseDegreesAdjustedForMagneticHeading / 360.0) * 1023.0);
+
+            var lowerPoint = _courseExciterCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= courseDegreesAdjustedForMagneticHeading) ??
                              new CalibrationPoint(0, 0);
             var upperPoint =
                 _courseExciterCalibrationData
@@ -997,15 +1022,15 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input);
             var outputRange = Math.Abs(upperPoint.Output - lowerPoint.Output);
             var inputPct = inputRange != 0
-                ? (courseDegrees - lowerPoint.Input) / inputRange
+                ? (courseDegreesAdjustedForMagneticHeading - lowerPoint.Input) / inputRange
                 : 1.00;
             return (ushort)((inputPct * outputRange) + lowerPoint.Output);
         }
 
         private ushort CalibratedCourseDeviationIndicatorPositionValue(double courseDeviationDegrees, double courseDeviationLimitDegrees)
         {
-            if (double.IsNaN(courseDeviationDegrees)) courseDeviationDegrees = 0;
-            if (double.IsNaN(courseDeviationLimitDegrees) || courseDeviationLimitDegrees == 0) courseDeviationLimitDegrees = 10;
+            if (double.IsNaN(courseDeviationDegrees) || double.IsInfinity(courseDeviationDegrees)) courseDeviationDegrees = 0;
+            if (double.IsNaN(courseDeviationLimitDegrees) || double.IsInfinity(courseDeviationLimitDegrees) || courseDeviationLimitDegrees == 0) courseDeviationLimitDegrees = 10;
 
             var courseDeviationPct = (courseDeviationDegrees / courseDeviationLimitDegrees);
             if (_courseDeviationIndicatorCalibrationData == null)
