@@ -50,7 +50,15 @@ namespace Henkie.Common
             EnsurePortIsReady();
             lock (_serialPortLock)
             {
-                _serialPort.Write(buffer, index, count);
+                try
+                {
+                    _serialPort.Write(buffer, index, count);
+                }
+                catch
+                {
+                    Console.WriteLine("Serial port " + _serialPort.PortName + " timed out, disconnecting and reconnecting");
+                    ClosePort();
+                }
             }
         }
         public int BytesAvailable
