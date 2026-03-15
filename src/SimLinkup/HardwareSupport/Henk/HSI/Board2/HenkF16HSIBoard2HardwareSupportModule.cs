@@ -49,7 +49,6 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
         private readonly DeviceConfig _hsiBoard2DeviceConfig;
         private byte _hsiBoard2DeviceAddress;
 
-        private CalibrationPoint[] _courseExciterCalibrationData;
         private CalibrationPoint[] _courseDeviationIndicatorCalibrationData;
 
         private HenkF16HSIBoard2HardwareSupportModule(DeviceConfig hsiBoard2DeviceConfig)
@@ -218,7 +217,6 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
         private void ConfigureCalibration()
         {
             if (_hsiBoard2DeviceInterface == null) return;
-            _courseExciterCalibrationData = _hsiBoard2DeviceConfig?.CourseExciterCalibrationData;
             _courseDeviationIndicatorCalibrationData = _hsiBoard2DeviceConfig?.CourseDeviationIndicatorCalibrationData;
         }
 
@@ -467,7 +465,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             {
                 Category = "Inputs",
                 CollectionName = "Analog Inputs",
-                FriendlyName = "Course (from sim)",
+                FriendlyName = "Desired Course (from sim)",
                 Id = $"Henk_F16_HS1_Board2__Course_From_Sim",
                 Index = 0,
                 Source = this,
@@ -753,15 +751,6 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 _toFromFlagsOutputSignal.SignalChanged += ToFromFlagsOutputSignal_SignalChanged;
             }
 
-            if (_courseInputSignal != null)
-            {
-                _courseInputSignal.SignalChanged += CourseInputSignal_SignalChanged;
-            }
-            if (_courseArrowPositionOutputSignal != null)
-            {
-                _courseArrowPositionOutputSignal.SignalChanged += CourseArrowPositionOutputSignal_SignalChanged;
-            }
-
             foreach (var digitalSignal in _digitalOutputs)
             {
                 digitalSignal.SignalChanged += OutputSignalForDigitalOutputChannel_SignalChanged;
@@ -778,6 +767,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 }
                 catch (RemotingException) { }
             }
+
             if (_courseDeviationLimitInputSignal != null)
             {
                 try
@@ -837,23 +827,6 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 catch (RemotingException) { }
             }
 
-            if (_courseInputSignal != null)
-            {
-                try
-                {
-                    _courseInputSignal.SignalChanged -= CourseInputSignal_SignalChanged;
-                }
-                catch (RemotingException) { }
-            }
-            if (_courseArrowPositionOutputSignal != null)
-            {
-                try
-                {
-                    _courseArrowPositionOutputSignal.SignalChanged -= CourseArrowPositionOutputSignal_SignalChanged;
-                }
-                catch (RemotingException) { }
-            }
-
             foreach (var digitalSignal in _digitalOutputs)
             {
                 try
@@ -870,6 +843,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
         {
             CourseDeviationOrCourseDeviationLimitInputSignalsChanged();
         }
+
         private void CourseDeviationLimitInputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
             CourseDeviationOrCourseDeviationLimitInputSignalsChanged();
@@ -945,27 +919,6 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             }
         }
 
-        private void CourseInputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
-        {
-            if (_hsiBoard2DeviceInterface != null && _courseArrowPositionOutputSignal != null && _courseInputSignal != null)
-            {
-                _courseArrowPositionOutputSignal.State = CalibratedCourseArrowPositionValue(_courseInputSignal.State);
-            }
-        }
-        private short? _lastCourseArrowPositionState = null;
-        private void CourseArrowPositionOutputSignal_SignalChanged(object sender, AnalogSignalChangedEventArgs args)
-        {
-            if (_hsiBoard2DeviceInterface != null && _courseArrowPositionOutputSignal != null)
-            {
-                var newCourseArrowPositionState = (short)_courseArrowPositionOutputSignal.State;
-                if (newCourseArrowPositionState != _lastCourseArrowPositionState)
-                {
-                    _hsiBoard2DeviceInterface.SetCourseArrowPosition(newCourseArrowPositionState);
-                    _lastCourseArrowPositionState = newCourseArrowPositionState;
-                }
-            }
-        }
-
         private void OutputSignalForDigitalOutputChannel_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
         {
             if (_hsiBoard2DeviceInterface == null) return;
@@ -984,28 +937,10 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             }
         }
 
-        private ushort CalibratedCourseArrowPositionValue(double courseDegrees)
-        {
-            if (_courseExciterCalibrationData == null) return (ushort)((courseDegrees / 360.0) * 1023.0);
-
-            var lowerPoint = _courseExciterCalibrationData.OrderBy(x => x.Input).LastOrDefault(x => x.Input <= courseDegrees) ??
-                             new CalibrationPoint(0, 0);
-            var upperPoint =
-                _courseExciterCalibrationData
-                    .OrderBy(x => x.Input)
-                    .FirstOrDefault(x => x != lowerPoint && x.Input >= lowerPoint.Input) ?? new CalibrationPoint(360, 1023);
-            var inputRange = Math.Abs(upperPoint.Input - lowerPoint.Input);
-            var outputRange = Math.Abs(upperPoint.Output - lowerPoint.Output);
-            var inputPct = inputRange != 0
-                ? (courseDegrees - lowerPoint.Input) / inputRange
-                : 1.00;
-            return (ushort)((inputPct * outputRange) + lowerPoint.Output);
-        }
-
         private ushort CalibratedCourseDeviationIndicatorPositionValue(double courseDeviationDegrees, double courseDeviationLimitDegrees)
         {
-            if (double.IsNaN(courseDeviationDegrees)) courseDeviationDegrees = 0;
-            if (double.IsNaN(courseDeviationLimitDegrees) || courseDeviationLimitDegrees == 0) courseDeviationLimitDegrees = 10;
+            if (double.IsNaN(courseDeviationDegrees) || double.IsInfinity(courseDeviationDegrees)) courseDeviationDegrees = 0;
+            if (double.IsNaN(courseDeviationLimitDegrees) || double.IsInfinity(courseDeviationLimitDegrees) || courseDeviationLimitDegrees == 0) courseDeviationLimitDegrees = 10;
 
             var courseDeviationPct = (courseDeviationDegrees / courseDeviationLimitDegrees);
             if (_courseDeviationIndicatorCalibrationData == null)

@@ -40,10 +40,6 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
         public byte CourseValueHysteresisThreshold { get; set; } = 0;
         public byte Course45DegreeSinCosCrossover { get; set; } = 177;
 
-        [XmlArray("CourseExciterCalibrationData")]
-        [XmlArrayItem(nameof(CalibrationPoint))]
-        public CalibrationPoint[] CourseExciterCalibrationData { get; set; } = Array.Empty<CalibrationPoint>();
-
         [XmlArray("CourseDeviationIndicatorCalibrationData")]
         [XmlArrayItem(nameof(CalibrationPoint))]
         public CalibrationPoint[] CourseDeviationIndicatorCalibrationData { get; set; } = Array.Empty<CalibrationPoint>();
