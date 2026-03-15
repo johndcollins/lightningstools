@@ -1,21 +1,69 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Threading;
 
 namespace Henkie.Common
 {
-    public class UsbCommandDispatcher : ICommandDispatcher
+    public class UsbCommandDispatcher: ICommandDispatcher
     {
+
         private bool _isDisposed = false;
         private ISerialPortConnection SerialPortConnection { get; set; }
-
+        private readonly Queue<UsbCommand> _commandQueue = new Queue<UsbCommand>();
+        private System.Timers.Timer _commandSendingTimer;
+        private bool _useCommandSendingTimer = false;
+        private struct UsbCommand
+        {
+            public byte Subaddress { get; set; }
+            public byte? Data { get; set; }
+            public bool UsePseudoCobs { get; set; }
+        }
         public UsbCommandDispatcher(ISerialPortConnection serialPortConnection)
         {
             SerialPortConnection = serialPortConnection;
+            StartCommandSendingTimer();
         }
+
         public UsbCommandDispatcher(string COMPort)
         {
             SerialPortConnection = new SerialPortConnection(COMPort);
+            StartCommandSendingTimer();
         }
-        public void SendCommand(byte subaddress, byte? data=null, bool usePseudoCOBS = false)
+        private void StartCommandSendingTimer()
+        {
+            if (_useCommandSendingTimer)
+            {
+                _commandSendingTimer = new System.Timers.Timer(20)
+                {
+                    AutoReset = true,
+                };
+                _commandSendingTimer.Elapsed += _commandSendingTimer_Elapsed;
+                _commandSendingTimer.Enabled = true;
+                _commandSendingTimer.Start();
+            }
+        }
+        public void SendCommand(byte subaddress, byte? data = null, bool usePseudoCOBS = false)
+        {
+            if (_useCommandSendingTimer)
+            {
+                var usbCommand = new UsbCommand() { Subaddress = subaddress, Data = data, UsePseudoCobs = usePseudoCOBS };
+                _commandQueue.Enqueue(usbCommand);
+            }
+            else
+            {
+                SendCommandInternal(subaddress, data, usePseudoCOBS);
+            }
+        }
+        private void _commandSendingTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            var nextCommand = _commandQueue.Count > 0 ? _commandQueue.Dequeue() : (UsbCommand?)null;
+            if (nextCommand != null)
+            {
+                SendCommandInternal(nextCommand.Value.Subaddress, nextCommand.Value.Data, nextCommand.Value.UsePseudoCobs);
+            }
+        }
+
+        private void SendCommandInternal(byte subaddress, byte? data=null, bool usePseudoCOBS = false)
         {
             if (SerialPortConnection != null)
             {
@@ -76,6 +124,10 @@ namespace Henkie.Common
                 if (SerialPortConnection != null)
                 {
                     SerialPortConnection.Dispose();
+                }
+                if (_commandSendingTimer != null)
+                {
+                    _commandSendingTimer.Dispose();
                 }
             }
             _isDisposed = true;
