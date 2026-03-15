@@ -63,10 +63,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CommandGroupAttribute.cs" />
     <Compile Include="ConnectionType.cs" />
     <Compile Include="DeviceDataReceivedEventArgs.cs" />
     <Compile Include="DeviceEvents.cs" />
     <Compile Include="DiagnosticLEDMode.cs" />
+    <Compile Include="EnumExtensions.cs" />
     <Compile Include="ICommandDispatcher.cs" />
     <Compile Include="ISerialPortConnection.cs" />
     <Compile Include="OutputChannelMode.cs" />

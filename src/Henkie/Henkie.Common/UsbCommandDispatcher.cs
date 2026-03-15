@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading;
 
 namespace Henkie.Common
@@ -11,21 +12,25 @@ namespace Henkie.Common
         private ISerialPortConnection SerialPortConnection { get; set; }
         private readonly Queue<UsbCommand> _commandQueue = new Queue<UsbCommand>();
         private System.Timers.Timer _commandSendingTimer;
-        private bool _useCommandSendingTimer = false;
+        private readonly bool _useCommandSendingTimer = false;
+
         private struct UsbCommand
         {
             public byte Subaddress { get; set; }
             public byte? Data { get; set; }
             public bool UsePseudoCobs { get; set; }
         }
+
+        private Type CommandSubaddresses { get; set; } = null;
         public UsbCommandDispatcher(ISerialPortConnection serialPortConnection)
         {
             SerialPortConnection = serialPortConnection;
             StartCommandSendingTimer();
         }
 
-        public UsbCommandDispatcher(string COMPort)
+        public UsbCommandDispatcher(string COMPort, Type commandSubaddresses = null)
         {
+            CommandSubaddresses = commandSubaddresses;
             SerialPortConnection = new SerialPortConnection(COMPort);
             StartCommandSendingTimer();
         }
@@ -37,7 +42,7 @@ namespace Henkie.Common
                 {
                     AutoReset = true,
                 };
-                _commandSendingTimer.Elapsed += _commandSendingTimer_Elapsed;
+                _commandSendingTimer.Elapsed += CommandSendingTimer_Elapsed;
                 _commandSendingTimer.Enabled = true;
                 _commandSendingTimer.Start();
             }
@@ -54,15 +59,39 @@ namespace Henkie.Common
                 SendCommandInternal(subaddress, data, usePseudoCOBS);
             }
         }
-        private void _commandSendingTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        
+        private void CommandSendingTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
             var nextCommand = _commandQueue.Count > 0 ? _commandQueue.Dequeue() : (UsbCommand?)null;
-            if (nextCommand != null)
+            if (nextCommand != null && !QueueContainsLaterQueuedCommandsInSameCommandGroupAs(nextCommand.Value))
             {
                 SendCommandInternal(nextCommand.Value.Subaddress, nextCommand.Value.Data, nextCommand.Value.UsePseudoCobs);
             }
         }
 
+        private bool QueueContainsLaterQueuedCommandsInSameCommandGroupAs(UsbCommand commandToEvaluate)
+        {
+            if (_commandQueue.Count == 0 || CommandSubaddresses == null) return false;
+
+            var commandGroup = GetCommandGroup(commandToEvaluate.Subaddress);
+            if (commandGroup == null) return false;
+            foreach (var command in _commandQueue)
+            {
+                var thisItemCommandGroup = GetCommandGroup(command.Subaddress);
+                if (thisItemCommandGroup == null) continue;
+                if (thisItemCommandGroup == commandGroup) return true;
+            }
+            return false;
+        }
+        
+        private string GetCommandGroup(byte subAddress)
+        {
+            if (!(Enum.ToObject(CommandSubaddresses, subAddress) is Enum enumMember)) return null;
+            var commandGroupAttribute = enumMember.GetAttribute<CommandGroupAttribute>();
+            if (commandGroupAttribute == null) return null;
+            return commandGroupAttribute.CommandGroupName;
+        }
+        
         private void SendCommandInternal(byte subaddress, byte? data=null, bool usePseudoCOBS = false)
         {
             if (SerialPortConnection != null)
@@ -84,6 +113,7 @@ namespace Henkie.Common
                 }
             }
         }
+        
         public byte[] SendQuery(byte subaddress, byte? data = null, int bytesToRead = 0, bool usePsuedoCOBS = false)
         {
             if (bytesToRead <0)
@@ -106,6 +136,7 @@ namespace Henkie.Common
             }
             return null;
         }
+        
         public void Dispose()
         {
             Dispose(true);
@@ -121,14 +152,8 @@ namespace Henkie.Common
         {
             if (disposing && !_isDisposed)
             {
-                if (SerialPortConnection != null)
-                {
-                    SerialPortConnection.Dispose();
-                }
-                if (_commandSendingTimer != null)
-                {
-                    _commandSendingTimer.Dispose();
-                }
+                SerialPortConnection?.Dispose();
+                _commandSendingTimer?.Dispose();
             }
             _isDisposed = true;
         }

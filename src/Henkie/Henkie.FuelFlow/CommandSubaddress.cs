@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using Henkie.Common;
+using System.Runtime.InteropServices;
 
 namespace Henkie.FuelFlow
 {
@@ -11,66 +12,82 @@ namespace Henkie.FuelFlow
         /// <summary>
         ///   Move indicator in “range” 0000 – 0255
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_0 = 0,
         /// <summary>
         ///   Move indicator in “range” 0256 – 0511
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_1 = 1,
         /// <summary>
         ///   Move indicator in “range” 0512 – 0767
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_2 = 2,
         /// <summary>
         ///   Move indicator in “range” 0768 – 1023
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_3 = 3,
         /// <summary>
         ///   Move indicator in “range” 1024 – 1279
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_4 = 4,
         /// <summary>
         ///   Move indicator in “range” 1280 – 1535
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_5 = 5,
         /// <summary>
         ///   Move indicator in “range” 1536 – 1791
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_6 = 6,
         /// <summary>
         ///   Move indicator in “range” 1792 – 2047
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_7 = 7,
         /// <summary>
         ///   Move indicator in “range” 2048 – 2302
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_8 = 8,
         /// <summary>
         ///   Move indicator in “range” 2304 – 2559
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_9 = 9,
         /// <summary>
         ///   Move indicator in “range” 2560 – 2815
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_A = 10,
         /// <summary>
         ///   Move indicator in “range” 2816 – 3071
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_B = 11,
         /// <summary>
         ///   Move indicator in “range” 3072 – 332
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_C = 12,
         /// <summary>
         ///   Move indicator in “range” 3328 – 3583
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_D = 13,
         /// <summary>
         ///   Move indicator in “range” 3584 – 3839
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_E = 14,
         /// <summary>
         ///   Move indicator in “range” 3840 – 4095
         /// </summary>
+        [CommandGroup("FuelFlow")]
         SALT_F = 15,
 
 

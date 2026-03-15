@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using Henkie.Common;
+using System.Runtime.InteropServices;
 
 namespace Henkie.HSI.Board1
 {
@@ -11,87 +12,107 @@ namespace Henkie.HSI.Board1
         /// <summary>
         ///   Move BEARING indicator in "range" 0000 – 0255 (000 degrees to 090 degrees)
         /// </summary>
+        [CommandGroup("Bearing")]
         BEARING_0TO90 = 0,
         /// <summary>
         ///   Move BEARING indicator in “range” 0256 – 0511 (090 degrees to 180 degrees)
         /// </summary>
+        [CommandGroup("Bearing")]
         BEARING_90TO180 = 1,
         /// <summary>
         ///   Move BEARING indicator in “range” 0512 – 0767 (180 degrees to 270 degrees)
         /// </summary>
+        [CommandGroup("Bearing")]
         BEARING_180TO270 = 2,
         /// <summary>
         ///   Move BEARING indicator in “range” 0768 – 1023 (270 degrees to 360 degrees)
         /// </summary>
+        [CommandGroup("Bearing")]
         BEARING_270TO360 = 3,
 
         /// <summary>
         ///   Move HEADING indicator in "range" 0000 – 0255 (000 degrees to 090 degrees)
         /// </summary>
+        [CommandGroup("Heading")]
         HEADING_0TO90 = 4,
         /// <summary>
         ///   Move HEADING indicator in “range” 0256 – 0511 (090 degrees to 180 degrees)
         /// </summary>
+        [CommandGroup("Heading")]
         HEADING_90TO180 = 5,
         /// <summary>
         ///   Move HEADING indicator in “range” 0512 – 0767 (180 degrees to 270 degrees)
         /// </summary>
+        [CommandGroup("Heading")]
         HEADING_180TO270 = 6,
         /// <summary>
         ///   Move HEADING indicator in “range” 0768 – 1023 (270 degrees to 360 degrees)
         /// </summary>
+        [CommandGroup("Heading")]
         HEADING_270TO360 = 7,
 
         /// <summary>
         ///   Set RANGE miles indicator "ones" digit in "range" 0000 – 0255 (000 degrees to 090 degrees)
         /// </summary>
+        [CommandGroup("RangeOnesDigit")]
         RANGE_ONES_DIGIT_0TO90 = 8,
         /// <summary>
         ///   Set RANGE miles indicator "ones" digit in  “range” 0256 – 0511 (090 degrees to 180 degrees)
         /// </summary>
+        [CommandGroup("RangeOnesDigit")]
         RANGE_ONES_DIGIT_90TO180 = 9,
         /// <summary>
         ///   Set RANGE miles indicator "ones" digit in “range” 0512 – 0767 (180 degrees to 270 degrees)
         /// </summary>
+        [CommandGroup("RangeOnesDigit")]
         RANGE_ONES_DIGIT_180TO270 = 10,
         /// <summary>
         ///   Set RANGE miles indicator "ones" digit in “range” 0768 – 1023 (270 degrees to 360 degrees)
         /// </summary>
+        [CommandGroup("RangeOnesDigit")]
         RANGE_ONES_DIGIT_270TO360 = 11,
 
 
         /// <summary>
         ///   Set RANGE miles indicator "tens" digit in "range" 0000 – 0255 (000 degrees to 090 degrees)
         /// </summary>
+        [CommandGroup("RangeTensDigit")]
         RANGE_TENS_DIGIT_0TO90 = 12,
         /// <summary>
         ///   Set RANGE miles indicator "tens" digit in  “range” 0256 – 0511 (090 degrees to 180 degrees)
         /// </summary>
+        [CommandGroup("RangeTensDigit")]
         RANGE_TENS_DIGIT_90TO180 = 13,
         /// <summary>
         ///   Set RANGE miles indicator "tens" digit in “range” 0512 – 0767 (180 degrees to 270 degrees)
         /// </summary>
+        [CommandGroup("RangeTensDigit")]
         RANGE_TENS_DIGIT_180TO270 = 14,
         /// <summary>
         ///   Set RANGE miles indicator "tens" digit in “range” 0768 – 1023 (270 degrees to 360 degrees)
         /// </summary>
+        [CommandGroup("RangeTensDigit")]
         RANGE_TENS_DIGIT_270TO360 = 15,
 
         /// <summary>
         ///   Set RANGE miles indicator "hundreds" digit in "range" 0000 – 0255 (000 degrees to 090 degrees)
         /// </summary>
+        [CommandGroup("RangeHundredsDigit")]
         RANGE_HUNDREDS_DIGIT_0TO90 = 16,
         /// <summary>
         ///   Set RANGE miles indicator "hundreds" digit in  “range” 0256 – 0511 (090 degrees to 180 degrees)
         /// </summary>
+        [CommandGroup("RangeHundredsDigit")]
         RANGE_HUNDREDS_DIGIT_90TO180 = 17,
         /// <summary>
         ///   Set RANGE miles indicator "hundreds" digit in “range” 0512 – 0767 (180 degrees to 270 degrees)
         /// </summary>
+        [CommandGroup("RangeHundredsDigit")]
         RANGE_HUNDREDS_DIGIT_180TO270 = 18,
         /// <summary>
         ///   Set RANGE miles indicator "hundreds" digit in “range” 0768 – 1023 (270 degrees to 360 degrees)
         /// </summary>
+        [CommandGroup("RangeHundredsDigit")]
         RANGE_HUNDREDS_DIGIT_270TO360 = 19,
 
 

@@ -32,7 +32,7 @@ namespace Henkie.HSI.Board2
         public Device(string COMPort) : this()
         {
             this.COMPort = COMPort;
-            _commandDispatcher = new UsbCommandDispatcher(COMPort);
+            _commandDispatcher = new UsbCommandDispatcher(COMPort, typeof(CommandSubaddress));
         }
 
         /// <summary>

@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using Henkie.Common;
+using System.Runtime.InteropServices;
 
 namespace Henkie.HSI.Board2
 {
@@ -12,18 +13,22 @@ namespace Henkie.HSI.Board2
         /// <summary>
         ///   Move course deviation indicator in "range" 000 – 255
         /// </summary>
+        [CommandGroup("CDI")]
         CDI_000TO255 = 0,
         /// <summary>
         ///   Move course deviation indicator in "range" 256 – 511
         /// </summary>
+        [CommandGroup("CDI")]
         CDI_256TO511 = 1,
         /// <summary>
         ///   Move course deviation indicator in "range" 512 – 767
         /// </summary>
+        [CommandGroup("CDI")]
         CDI_512TO767 = 2,
         /// <summary>
         ///   Move course deviation indicator in "range" 768 – 1023
         /// </summary>
+        [CommandGroup("CDI")]
         CDI_768TO1023 = 3,
 
 
@@ -39,6 +44,7 @@ namespace Henkie.HSI.Board2
         /// <summary>
         ///   Request heading info update (results in one reply message)
         /// </summary>
+        [CommandGroup("HeadingInfoUpdate")]
         REQUEST_HEADING_INFO_UPDATE = 6,
         /// <summary>
         ///   Convert heading value to degrees (1 = convert)
@@ -91,18 +97,22 @@ namespace Henkie.HSI.Board2
         /// <summary>
         ///   Set course synchro exciter in "range" 000 – 255
         /// </summary>
+        [CommandGroup("CourseSynchroExciter")]
         COURSE_SYNCHRO_EXCITER_000TO255 = 16,
         /// <summary>
         ///   Set course synchro exciter in "range" 256 – 511
         /// </summary>
+        [CommandGroup("CourseSynchroExciter")]
         COURSE_SYNCHRO_EXCITER_256TO511 = 17,
         /// <summary>
         ///   Set course synchro exciter in "range" 512 – 767
         /// </summary>
+        [CommandGroup("CourseSynchroExciter")]
         COURSE_SYNCHRO_EXCITER_512TO767 = 18,
         /// <summary>
         ///   Set course synchro exciter in "range" 768 – 1023
         /// </summary>
+        [CommandGroup("CourseSynchroExciter")]
         COURSE_SYNCHRO_EXCITER_768TO1023 = 19,
 
         /// <summary>

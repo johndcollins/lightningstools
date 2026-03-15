@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using Henkie.Common;
+using System.Runtime.InteropServices;
 
 namespace Henkie.SDI
 {
@@ -11,22 +12,27 @@ namespace Henkie.SDI
         /// <summary>
         ///   Move indicator in quadrant 1
         /// </summary>
+        [CommandGroup("SDI")]
         SSYNQ1 = 0,
         /// <summary>
         ///   Move indicator in quadrant 2
         /// </summary>
+        [CommandGroup("SDI")]
         SSYNQ2 = 1,
         /// <summary>
         ///   Move indicator in quadrant 3
         /// </summary>
+        [CommandGroup("SDI")]
         SSYNQ3 = 2,
         /// <summary>
         ///   Move indicator in quadrant 4
         /// </summary>
+        [CommandGroup("SDI")]
         SSYNQ4 = 3,
         /// <summary>
         ///   Move indicator (coarse resolution)
         /// </summary>
+        [CommandGroup("SDI")]
         SYN8BIT = 12,
 
 
