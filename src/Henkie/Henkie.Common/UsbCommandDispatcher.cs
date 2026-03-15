@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 
@@ -30,7 +31,11 @@ namespace Henkie.Common
 
         public UsbCommandDispatcher(string COMPort, Type commandSubaddresses = null)
         {
-            CommandSubaddresses = commandSubaddresses;
+            if (commandSubaddresses != null)
+            {
+                CommandSubaddresses = commandSubaddresses;
+                _useCommandSendingTimer = true;
+            }
             SerialPortConnection = new SerialPortConnection(COMPort);
             StartCommandSendingTimer();
         }
@@ -38,7 +43,7 @@ namespace Henkie.Common
         {
             if (_useCommandSendingTimer)
             {
-                _commandSendingTimer = new System.Timers.Timer(20)
+                _commandSendingTimer = new System.Timers.Timer(30)
                 {
                     AutoReset = true,
                 };
@@ -62,7 +67,12 @@ namespace Henkie.Common
         
         private void CommandSendingTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
-            var nextCommand = _commandQueue.Count > 0 ? _commandQueue.Dequeue() : (UsbCommand?)null;
+            UsbCommand? nextCommand = null;
+            try
+            {
+                nextCommand = _commandQueue.Count > 0 ? _commandQueue.Dequeue() : (UsbCommand?)null;
+            }
+            catch { }
             if (nextCommand != null && !QueueContainsLaterQueuedCommandsInSameCommandGroupAs(nextCommand.Value))
             {
                 SendCommandInternal(nextCommand.Value.Subaddress, nextCommand.Value.Data, nextCommand.Value.UsePseudoCobs);
@@ -75,7 +85,7 @@ namespace Henkie.Common
 
             var commandGroup = GetCommandGroup(commandToEvaluate.Subaddress);
             if (commandGroup == null) return false;
-            foreach (var command in _commandQueue)
+            foreach (var command in _commandQueue.ToList())
             {
                 var thisItemCommandGroup = GetCommandGroup(command.Subaddress);
                 if (thisItemCommandGroup == null) continue;
