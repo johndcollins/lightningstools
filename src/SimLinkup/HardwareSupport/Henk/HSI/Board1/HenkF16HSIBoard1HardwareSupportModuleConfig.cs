@@ -7,7 +7,7 @@ using Henkie.HSI.Board1;
 namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
 {
     [Serializable]
-    [XmlRoot("Henk_F16_HS1_Board1")]
+    [XmlRoot("Henk_F16_HSI_Board1")]
     public class HenkieF16HSIBoard1HardwareSupportModuleConfig
     {
         [XmlArray("Devices")]

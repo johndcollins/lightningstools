@@ -13,7 +13,7 @@
       </Source>
       <!-- HENK HSI OFF FLAG INPUT-->
       <Destination xsi:type="DigitalSignal">
-        <Id>Henk_F16_HS1_Board1__Off_Flag_From_Sim</Id>
+        <Id>Henk_F16_HSI_Board1__Off_Flag_From_Sim</Id>
       </Destination>
     </SignalMapping>
 
@@ -25,7 +25,7 @@
       </Source>
       <!-- HENK HSI DEVIATION FLAG INPUT-->
       <Destination xsi:type="DigitalSignal">
-        <Id>Henk_F16_HS1_Board1__Deviation_Flag_From_Sim</Id>
+        <Id>Henk_F16_HSI_Board1__Deviation_Flag_From_Sim</Id>
       </Destination>
     </SignalMapping>
 
@@ -37,7 +37,7 @@
       </Source>
       <!-- HENK HSI RANGE INVALID FLAG INPUT-->
       <Destination xsi:type="DigitalSignal">
-        <Id>Henk_F16_HS1_Board1__Range_Invalid_Flag_From_Sim</Id>
+        <Id>Henk_F16_HSI_Board1__Range_Invalid_Flag_From_Sim</Id>
       </Destination>
     </SignalMapping>
 
@@ -49,7 +49,7 @@
       </Source>
       <!-- HENK HSI TO FLAG INPUT-->
       <Destination xsi:type="DigitalSignal">
-        <Id>Henk_F16_HS1_Board1__TO_Flag_From_Sim</Id>
+        <Id>Henk_F16_HSI_Board1__TO_Flag_From_Sim</Id>
       </Destination>
     </SignalMapping>
 
@@ -61,7 +61,7 @@
       </Source>
       <!-- HENK HSI FROM FLAG INPUT-->
       <Destination xsi:type="DigitalSignal">
-        <Id>Henk_F16_HS1_Board1__FROM_Flag_From_Sim</Id>
+        <Id>Henk_F16_HSI_Board1__FROM_Flag_From_Sim</Id>
       </Destination>
     </SignalMapping>
 
@@ -73,7 +73,7 @@
       </Source>
       <!-- HENK HSI MAGNETIC HEADING INPUT-->
       <Destination xsi:type="AnalogSignal">
-        <Id>Henk_F16_HS1_Board1__Magnetic_Heading_From_Sim</Id>
+        <Id>Henk_F16_HSI_Board1__Magnetic_Heading_From_Sim</Id>
       </Destination>
     </SignalMapping>
 
@@ -85,7 +85,7 @@
       </Source>
       <!-- HENK HSI DESIRED HEADING INPUT-->
       <Destination xsi:type="AnalogSignal">
-        <Id>Henk_F16_HS1_Board1__Desired_Heading_From_Sim</Id>
+        <Id>Henk_F16_HSI_Board1__Desired_Heading_From_Sim</Id>
       </Destination>
     </SignalMapping>
 
@@ -97,7 +97,7 @@
       </Source>
       <!-- HENK HSI COURSE INPUT-->
       <Destination xsi:type="AnalogSignal">
-        <Id>Henk_F16_HS1_Board1__Course_From_Sim</Id>
+        <Id>Henk_F16_HSI_Board1__Course_From_Sim</Id>
       </Destination>
     </SignalMapping>
 
@@ -109,7 +109,7 @@
       </Source>
       <!-- HENK HSI BEARING INPUT-->
       <Destination xsi:type="AnalogSignal">
-        <Id>Henk_F16_HS1_Board1__Bearing_From_Sim</Id>
+        <Id>Henk_F16_HSI_Board1__Bearing_From_Sim</Id>
       </Destination>
     </SignalMapping>
 
@@ -121,7 +121,7 @@
       </Source>
       <!-- HENK HSI RANGE INPUT-->
       <Destination xsi:type="AnalogSignal">
-        <Id>Henk_F16_HS1_Board1__Range_From_Sim</Id>
+        <Id>Henk_F16_HSI_Board1__Range_From_Sim</Id>
       </Destination>
     </SignalMapping>
 
@@ -133,7 +133,7 @@
       </Source>
       <!-- HENK HSI COURSE DEVIATION INPUT-->
       <Destination xsi:type="AnalogSignal">
-        <Id>Henk_F16_HS1_Board1__Course_Deviation_From_Sim</Id>
+        <Id>Henk_F16_HSI_Board1__Course_Deviation_From_Sim</Id>
       </Destination>
     </SignalMapping>
 
@@ -145,7 +145,7 @@
       </Source>
       <!-- HENK HSI COURSE DEVIATION LIMIT INPUT-->
       <Destination xsi:type="AnalogSignal">
-        <Id>Henk_F16_HS1_Board1__Course_Deviation_Limit_From_Sim</Id>
+        <Id>Henk_F16_HSI_Board1__Course_Deviation_Limit_From_Sim</Id>
       </Destination>
     </SignalMapping>
     
