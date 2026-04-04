@@ -443,11 +443,11 @@ namespace F4Utils.SimSupport
                     break;
 
                 case F4SimOutputs.HSI__TO_FLAG:
-                    ((DigitalSignal) output).State = Math.Abs(Common.Math.Util.AngleDelta(_lastFlightData.desiredCourse, _lastFlightData.bearingToBeacon)) <= 90 && showToFromFlag;
+                    ((DigitalSignal) output).State = (((HsiBits)_lastFlightData.hsiBits & HsiBits.ToTrue) == HsiBits.ToTrue) && showToFromFlag;
                     break;
 
                 case F4SimOutputs.HSI__FROM_FLAG:
-                    ((DigitalSignal) output).State = Math.Abs(Common.Math.Util.AngleDelta(_lastFlightData.desiredCourse, _lastFlightData.bearingToBeacon)) > 90 && showToFromFlag;
+                    ((DigitalSignal) output).State = (((HsiBits)_lastFlightData.hsiBits & HsiBits.FromTrue) == HsiBits.FromTrue) && showToFromFlag;
                     break;
 
                 case F4SimOutputs.HSI__OFF_FLAG:
