@@ -113,7 +113,7 @@ namespace Henkie.Common
                     ReceivedBytesThreshold = 1,
                     RtsEnable = true,
                     ReadTimeout = 500,
-                    WriteTimeout = 500
+                    WriteTimeout = 1000
                 };
                 _serialPort.DataReceived += _serialPort_DataReceived;
                 _serialPort.ErrorReceived += _serialPort_ErrorReceived;
