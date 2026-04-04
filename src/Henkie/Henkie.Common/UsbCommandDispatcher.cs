@@ -13,8 +13,8 @@ namespace Henkie.Common
         private ISerialPortConnection SerialPortConnection { get; set; }
         private readonly Queue<UsbCommand> _commandQueue = new Queue<UsbCommand>();
         private System.Timers.Timer _commandSendingTimer;
-        private readonly bool _useCommandSendingTimer = false;
-
+        private readonly bool _useCommandSendingTimer = true;
+        private object _lockObj = new object();
         private struct UsbCommand
         {
             public byte Subaddress { get; set; }
@@ -57,7 +57,10 @@ namespace Henkie.Common
             if (_useCommandSendingTimer)
             {
                 var usbCommand = new UsbCommand() { Subaddress = subaddress, Data = data, UsePseudoCobs = usePseudoCOBS };
-                _commandQueue.Enqueue(usbCommand);
+                lock (_lockObj)
+                {
+                    _commandQueue.Enqueue(usbCommand);
+                }
             }
             else
             {
@@ -68,30 +71,47 @@ namespace Henkie.Common
         private void CommandSendingTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
             UsbCommand? nextCommand = null;
-            try
-            {
-                nextCommand = _commandQueue.Count > 0 ? _commandQueue.Dequeue() : (UsbCommand?)null;
-            }
-            catch { }
-            if (nextCommand != null && !QueueContainsLaterQueuedCommandsInSameCommandGroupAs(nextCommand.Value))
+            nextCommand = GetNextCommandFromQueue();
+            if (nextCommand != null)
             {
                 SendCommandInternal(nextCommand.Value.Subaddress, nextCommand.Value.Data, nextCommand.Value.UsePseudoCobs);
             }
         }
 
+        private UsbCommand? GetNextCommandFromQueue()
+        {
+            lock (_lockObj)
+            {
+                var nextCommand =  _commandQueue.Count > 0 ? _commandQueue.Dequeue() : (UsbCommand?)null;
+                if (nextCommand != null)
+                {
+                    while (QueueContainsLaterQueuedCommandsInSameCommandGroupAs(nextCommand.Value))
+                    {
+                        nextCommand = _commandQueue.Count > 0 ? _commandQueue.Dequeue() : (UsbCommand?)null;
+                    }
+                }
+                return nextCommand;
+            }
+        }
+
         private bool QueueContainsLaterQueuedCommandsInSameCommandGroupAs(UsbCommand commandToEvaluate)
         {
-            if (_commandQueue.Count == 0 || CommandSubaddresses == null) return false;
-
-            var commandGroup = GetCommandGroup(commandToEvaluate.Subaddress);
-            if (commandGroup == null) return false;
-            foreach (var command in _commandQueue.ToList())
+            lock (_lockObj)
             {
-                var thisItemCommandGroup = GetCommandGroup(command.Subaddress);
-                if (thisItemCommandGroup == null) continue;
-                if (thisItemCommandGroup == commandGroup) return true;
+                if (_commandQueue.Count == 0 || CommandSubaddresses == null) return false;
+
+                var commandGroup = GetCommandGroup(commandToEvaluate.Subaddress);
+                if (commandGroup == null) return false;
+
+                var commands = _commandQueue.ToList();
+                foreach (var command in commands)
+                {
+                    var thisItemCommandGroup = GetCommandGroup(command.Subaddress);
+                    if (thisItemCommandGroup == null) continue;
+                    if (thisItemCommandGroup == commandGroup) return true;
+                }
+                return false;
             }
-            return false;
         }
         
         private string GetCommandGroup(byte subAddress)
@@ -118,7 +138,7 @@ namespace Henkie.Common
                         var checksum = (byte)((subaddress + data.Value) & 0x00FF);
                         var delimiter = (byte)0xFF;
                         SerialPortConnection.Write(new[] { subaddress, data.Value, checksum, delimiter }, 0, 4);
-                        //Console.WriteLine($"Writing command with subAddress:{subaddress} with value byte:{data.Value}, checksum:{checksum}, delimiter:{delimiter} to {SerialPortConnection.COMPort}");
+                        //Console.WriteLine($"{DateTime.Now.ToString("O")}: Writing command with subAddress:{subaddress} with value byte:{data.Value}, checksum:{checksum}, delimiter:{delimiter} to {SerialPortConnection.COMPort}");
                     }
                 }
             }
