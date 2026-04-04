@@ -100,7 +100,7 @@ namespace Henkie.HSI.Board2
             }
         }
 
-        public void SetNavigationWarningFlagVisible(bool visible)
+        public void SetDeviationInvalidFlagVisible(bool visible)
         {
             SendCommand(CommandSubaddress.NAVIGATION_WARNING_FLAG, visible ? (byte)0 : (byte)1);
         }

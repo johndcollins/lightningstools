@@ -31,7 +31,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
         private AnalogSignal _courseInputSignal;
         private AnalogSignal _courseDeviationInputSignal;
         private AnalogSignal _courseDeviationLimitInputSignal;
-        private DigitalSignal _deviationFlagInputSignal;
+        private DigitalSignal _deviationInvalidFlagInputSignal;
         private AnalogSignal _desiredHeadingFromSimInputSignal;
         private DigitalSignal _toFlagInputSignal;
         private DigitalSignal _fromFlagInputSignal;
@@ -39,7 +39,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
 
         //OUTPUT SIGNALS
         private AnalogSignal _courseDeviationIndicatorOutputSignal;
-        private DigitalSignal _navigationWarningFlagOutputSignal;
+        private DigitalSignal _deviationInvalidFlagOutputSignal;
         private AnalogSignal _toFromFlagsOutputSignal;
         private AnalogSignal _courseArrowPositionOutputSignal;
         private List<DigitalSignal> _digitalOutputs = new List<DigitalSignal>();
@@ -60,6 +60,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 CreateInputSignals();
                 CreateOutputSignals();
                 RegisterForEvents();
+                SetInitialState();
             }
         }
 
@@ -84,7 +85,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
         public override DigitalSignal[] DigitalInputs => new[]
         {
             _offFlagInputSignal, 
-            _deviationFlagInputSignal, 
+            _deviationInvalidFlagInputSignal, 
             _rangeInvalidFlagInputSignal, 
             _toFlagInputSignal,
             _fromFlagInputSignal
@@ -362,7 +363,10 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 Log.Error(e.Message, e);
             }
         }
-       
+        private void SetInitialState()
+        {
+            SetDeviationInvalidFlagVisibility(isVisible: false);
+        }
         public override void Render(Graphics g, Rectangle destinationRectangle)
         {
             _renderer.InstrumentState.BearingToBeaconDegrees = (float)_bearingInputSignal.State;
@@ -370,7 +374,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             _renderer.InstrumentState.CourseDeviationLimitDegrees = (float)_courseDeviationLimitInputSignal.State;
             _renderer.InstrumentState.DesiredCourseDegrees = (int)_courseInputSignal.State;
             _renderer.InstrumentState.DesiredHeadingDegrees = (int)_desiredHeadingFromSimInputSignal.State;
-            _renderer.InstrumentState.DeviationInvalidFlag = _deviationFlagInputSignal.State;
+            _renderer.InstrumentState.DeviationInvalidFlag = _deviationInvalidFlagInputSignal.State;
             _renderer.InstrumentState.DistanceToBeaconNauticalMiles = (float)_rangeInputSignal.State;
             _renderer.InstrumentState.DmeInvalidFlag = _rangeInvalidFlagInputSignal.State;
             _renderer.InstrumentState.FromFlag = _fromFlagInputSignal.State;
@@ -384,7 +388,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
         private void CreateInputSignals()
         {
             _offFlagInputSignal = CreateOffFlagInputSignal();
-            _deviationFlagInputSignal = CreateDeviationFlagInputSignal();
+            _deviationInvalidFlagInputSignal = CreateDeviationInvalidFlagInputSignal();
             _rangeInvalidFlagInputSignal = CreateRangeInvalidFlagInputSignal();
             _toFlagInputSignal = CreateToFlagInputSignal();
             _fromFlagInputSignal = CreateFromFlagInputSignal();
@@ -518,7 +522,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             };
             return thisSignal;
         }
-        private DigitalSignal CreateDeviationFlagInputSignal()
+        private DigitalSignal CreateDeviationInvalidFlagInputSignal()
         {
             var thisSignal = new DigitalSignal
             {
@@ -665,19 +669,19 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             return thisSignal;
         }
 
-        private DigitalSignal CreateNavigationWarningFlagOutputSignal()
+        private DigitalSignal CreateDeviationInvalidFlagOutputSignal()
         {
             var thisSignal = new DigitalSignal
             {
                 Category = "Outputs",
                 CollectionName = "Digital Outputs",
-                FriendlyName = "NAV Warning Flag (0 = visible, 1 = not visible)",
-                Id = $"Henk_F16_HSI_Board2[{"0x" + _hsiBoard2DeviceAddress.ToString("X").PadLeft(2, '0')}]__NAV_Warning_Flag_To_Instrument",
+                FriendlyName = "Deviation Invalid Flag (0 = visible, 1 = not visible)",
+                Id = $"Henk_F16_HSI_Board2[{"0x" + _hsiBoard2DeviceAddress.ToString("X").PadLeft(2, '0')}]__Deviation_Invalid_Flag_To_Instrument",
                 Index = 0,
                 Source = this,
                 SourceFriendlyName = FriendlyName,
                 SourceAddress = null,
-                State = true
+                State = false
             };
             return thisSignal;
         }
@@ -706,11 +710,11 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
         private void CreateOutputSignals()
         {
             _courseDeviationIndicatorOutputSignal = CreateCourseDeviationIndicatorPositionOutputSignal();
-            _navigationWarningFlagOutputSignal = CreateNavigationWarningFlagOutputSignal();
+            _deviationInvalidFlagOutputSignal = CreateDeviationInvalidFlagOutputSignal();
             _toFromFlagsOutputSignal = CreateToFromFlagsOutputSignal();
             _courseArrowPositionOutputSignal = CreateCourseArrowPositionOutputSignal();
             _digitalOutputs = CreateOutputSignalsForDigitalOutputChannels();
-            _digitalOutputs.Add(_navigationWarningFlagOutputSignal);
+            _digitalOutputs.Add(_deviationInvalidFlagOutputSignal);
         }
 
         private void RegisterForEvents()
@@ -729,13 +733,13 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 _courseDeviationIndicatorOutputSignal.SignalChanged += CourseDeviationIndicatorOutputSignal_SignalChanged;
             }
 
-            if (_deviationFlagInputSignal != null)
+            if (_deviationInvalidFlagInputSignal != null)
             {
-                _deviationFlagInputSignal.SignalChanged += DeviationFlagInputSignal_SignalChanged;
+                _deviationInvalidFlagInputSignal.SignalChanged += DeviationInvalidFlagInputSignal_SignalChanged;
             }
-            if (_navigationWarningFlagOutputSignal != null)
+            if (_deviationInvalidFlagOutputSignal != null)
             {
-                _navigationWarningFlagOutputSignal.SignalChanged += NavigationWarningFlagOutputSignal_SignalChanged;
+                _deviationInvalidFlagOutputSignal.SignalChanged += DeviationInvalidFlagOutputSignal_SignalChanged;
             }
 
             if (_toFlagInputSignal != null)
@@ -785,19 +789,19 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
                 catch (RemotingException) { }
             }
 
-            if (_deviationFlagInputSignal != null)
+            if (_deviationInvalidFlagInputSignal != null)
             {
                 try
                 {
-                    _deviationFlagInputSignal.SignalChanged -= DeviationFlagInputSignal_SignalChanged;
+                    _deviationInvalidFlagInputSignal.SignalChanged -= DeviationInvalidFlagInputSignal_SignalChanged;
                 }
                 catch (RemotingException) { }
             }
-            if (_navigationWarningFlagOutputSignal != null)
+            if (_deviationInvalidFlagOutputSignal != null)
             {
                 try
                 {
-                    _navigationWarningFlagOutputSignal.SignalChanged -= NavigationWarningFlagOutputSignal_SignalChanged;
+                    _deviationInvalidFlagOutputSignal.SignalChanged -= DeviationInvalidFlagOutputSignal_SignalChanged;
                 }
                 catch (RemotingException) { }
             }
@@ -872,19 +876,27 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
             }
         }
 
-        private void DeviationFlagInputSignal_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
+        private void DeviationInvalidFlagInputSignal_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
         {
-            if (_hsiBoard2DeviceInterface != null && _navigationWarningFlagOutputSignal != null && _deviationFlagInputSignal != null)
+            if (_hsiBoard2DeviceInterface != null && _deviationInvalidFlagOutputSignal != null && _deviationInvalidFlagInputSignal != null)
             {
-                _navigationWarningFlagOutputSignal.State = !_deviationFlagInputSignal.State;
+                _deviationInvalidFlagOutputSignal.State = _deviationInvalidFlagInputSignal.State;
             }
         }
 
-        private void NavigationWarningFlagOutputSignal_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
+        private void DeviationInvalidFlagOutputSignal_SignalChanged(object sender, DigitalSignalChangedEventArgs args)
         {
-            if (_hsiBoard2DeviceInterface != null && _navigationWarningFlagOutputSignal != null)
+            if (_deviationInvalidFlagOutputSignal != null)
             {
-                _hsiBoard2DeviceInterface.SetNavigationWarningFlagVisible(args.CurrentState);
+                SetDeviationInvalidFlagVisibility(args.CurrentState);
+            }
+        }
+
+        private void SetDeviationInvalidFlagVisibility(bool isVisible)
+        {
+            if (_hsiBoard2DeviceInterface != null )
+            {
+                _hsiBoard2DeviceInterface.SetDeviationInvalidFlagVisible(isVisible);
             }
         }
 
