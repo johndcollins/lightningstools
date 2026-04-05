@@ -23,7 +23,7 @@ namespace F4SharedMemTester
                     "DEDLines", "Invert", "PFLLines", "PFLInvert", 
                     "UFCTChan", "AUXTChan", 
                     "RWRObjectCount", "RWRsymbol", 
-                    "bearing", "missileActivity", "missileLaunch", "selected", "lethality", "newDetection", 
+                    "missileActivity", "missileLaunch", "selected", "lethality", "newDetection", 
                     "MainPower", "VersionNum"};
 
                 string[] fieldsToIntegerize = { 
@@ -39,7 +39,8 @@ namespace F4SharedMemTester
                         momentBValue: fieldInfo.GetValue(b.FlightData.Value),
                         momentBTime: b.StartTime.Value,
                         momentTTime: momentTTime);
-                    if (fieldsToIntegerize.Contains(fieldInfo.Name))
+                    var fieldName = fieldInfo.Name;
+                    if (fieldsToIntegerize.Contains(fieldName))
                     {
                         interpolatedValue = Convert.ChangeType(Convert.ToInt64(interpolatedValue), fieldInfo.GetValue(a.FlightData.Value).GetType());
                     }
