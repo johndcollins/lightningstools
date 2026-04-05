@@ -67,11 +67,11 @@
 
     <!-- MAGNETIC HEADING  -->
     <SignalMapping>
-      <!-- F4 MAGNETIC HEADING OUTPUT-->
-      <Source xsi:type="AnalogSignal">
-        <Id>F4_COMPASS__MAGNETIC_HEADING_DEGREES</Id>
-      </Source>
-      <!-- HENK HSI MAGNETIC HEADING INPUT-->
+		<!-- F4 HSI CURRENT HEADING OUTPUT-->
+		<Source xsi:type="AnalogSignal">
+			<Id>F4_HSI__CURRENT_HEADING_DEGREES</Id>
+		</Source>
+		<!-- HENK HSI MAGNETIC HEADING INPUT-->
       <Destination xsi:type="AnalogSignal">
         <Id>Henk_F16_HSI_Board1__Magnetic_Heading_From_Sim</Id>
       </Destination>

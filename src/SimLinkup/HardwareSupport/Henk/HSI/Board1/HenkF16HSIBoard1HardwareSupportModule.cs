@@ -467,7 +467,7 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 Category = "Inputs",
                 CollectionName = "Analog Inputs",
-                FriendlyName = "Magnetic Heading (from sim)",
+                FriendlyName = "Current Heading (from sim)",
                 Id = $"Henk_F16_HSI_Board1__Magnetic_Heading_From_Sim",
                 Index = 0,
                 Source = this,
