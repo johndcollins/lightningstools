@@ -82,35 +82,43 @@ namespace Henkie.Common
         {
             lock (_lockObj)
             {
+                UsbCommand? laterCommand = null;
                 var nextCommand =  _commandQueue.Count > 0 ? _commandQueue.Dequeue() : (UsbCommand?)null;
                 if (nextCommand != null)
                 {
-                    while (QueueContainsLaterQueuedCommandsInSameCommandGroupAs(nextCommand.Value))
+                    do
                     {
-                        nextCommand = _commandQueue.Count > 0 ? _commandQueue.Dequeue() : (UsbCommand?)null;
+                        laterCommand = null;
+                        laterCommand = LaterQueuedCommandInSameCommandGroupAs(nextCommand.Value);
+                        if (laterCommand != null)
+                        {
+                            nextCommand = laterCommand;
+                            _commandQueue.Dequeue();
+                        }
                     }
+                    while (laterCommand != null);
                 }
                 return nextCommand;
             }
         }
 
-        private bool QueueContainsLaterQueuedCommandsInSameCommandGroupAs(UsbCommand commandToEvaluate)
+        private UsbCommand? LaterQueuedCommandInSameCommandGroupAs(UsbCommand commandToEvaluate)
         {
             lock (_lockObj)
             {
-                if (_commandQueue.Count == 0 || CommandSubaddresses == null) return false;
+                if (_commandQueue.Count == 0 || CommandSubaddresses == null) return null;
 
                 var commandGroup = GetCommandGroup(commandToEvaluate.Subaddress);
-                if (commandGroup == null) return false;
+                if (commandGroup == null) return null;
 
                 var commands = _commandQueue.ToList();
                 foreach (var command in commands)
                 {
                     var thisItemCommandGroup = GetCommandGroup(command.Subaddress);
                     if (thisItemCommandGroup == null) continue;
-                    if (thisItemCommandGroup == commandGroup) return true;
+                    if (thisItemCommandGroup == commandGroup) return command;
                 }
-                return false;
+                return null;
             }
         }
         
@@ -139,6 +147,7 @@ namespace Henkie.Common
                         var delimiter = (byte)0xFF;
                         SerialPortConnection.Write(new[] { subaddress, data.Value, checksum, delimiter }, 0, 4);
                         //Console.WriteLine($"{DateTime.Now.ToString("O")}: Writing command with subAddress:{subaddress} with value byte:{data.Value}, checksum:{checksum}, delimiter:{delimiter} to {SerialPortConnection.COMPort}");
+                        //Console.WriteLine($"{DateTime.Now.ToString("O")}: Writing {(subaddress <4 ? "BEARING " :subaddress >=4 && subaddress <=7 ? "HEADING " : null) } command with subAddress:{subaddress} with value byte:{data.Value}, checksum:{checksum}, delimiter:{delimiter} to {SerialPortConnection.COMPort}");
                     }
                 }
             }
