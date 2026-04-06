@@ -429,16 +429,16 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
 
         public override void Render(Graphics g, Rectangle destinationRectangle)
         {
-            _renderer.InstrumentState.BearingToBeaconDegrees = (float)_bearingInputSignal.State;
+            _renderer.InstrumentState.BearingToBeaconDegrees = (float)_bearingInputSignal.CorrelatedState;
             _renderer.InstrumentState.CourseDeviationDegrees = (float)_courseDeviationInputSignal.State;
             _renderer.InstrumentState.CourseDeviationLimitDegrees = (float)_courseDeviationLimitInputSignal.State;
-            _renderer.InstrumentState.DesiredCourseDegrees = (int)_courseInputSignal.State;
-            _renderer.InstrumentState.DesiredHeadingDegrees = (int)_desiredHeadingFromSimInputSignal.State;
+            _renderer.InstrumentState.DesiredCourseDegrees = (int)_courseInputSignal.CorrelatedState;
+            _renderer.InstrumentState.DesiredHeadingDegrees = (int)_desiredHeadingFromSimInputSignal.CorrelatedState;
             _renderer.InstrumentState.DeviationInvalidFlag = _deviationFlagInputSignal.State;
             _renderer.InstrumentState.DistanceToBeaconNauticalMiles = (float)_rangeInputSignal.State;
             _renderer.InstrumentState.DmeInvalidFlag = _rangeInvalidFlagInputSignal.State;
             _renderer.InstrumentState.FromFlag = _fromFlagInputSignal.State;
-            _renderer.InstrumentState.MagneticHeadingDegrees = (float)_magneticHeadingInputSignal.State;
+            _renderer.InstrumentState.MagneticHeadingDegrees = (float)_magneticHeadingInputSignal.CorrelatedState;
             _renderer.InstrumentState.OffFlag = _offFlagInputSignal.State;
             _renderer.InstrumentState.ShowToFromFlag = true;
             _renderer.InstrumentState.ToFlag = _toFlagInputSignal.State;
@@ -1131,12 +1131,12 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
             {
                 return;
             }
-            var bearingToBeaconDegrees = double.IsInfinity(_bearingInputSignal.State) || double.IsNaN(_bearingInputSignal.State)
+            var bearingToBeaconDegrees = double.IsInfinity(_bearingInputSignal.CorrelatedState) || double.IsNaN(_bearingInputSignal.CorrelatedState)
                 ? 0
-                : _bearingInputSignal.State;
-            var magneticHeadingDegrees = double.IsInfinity(_magneticHeadingInputSignal.State) || double.IsNaN(_magneticHeadingInputSignal.State)
+                : _bearingInputSignal.CorrelatedState;
+            var magneticHeadingDegrees = double.IsInfinity(_magneticHeadingInputSignal.CorrelatedState) || double.IsNaN(_magneticHeadingInputSignal.CorrelatedState)
                 ? 0
-                : _magneticHeadingInputSignal.State % 360.00;
+                : _magneticHeadingInputSignal.CorrelatedState % 360.00;
 
             var adjustedBearingValue = -(magneticHeadingDegrees - bearingToBeaconDegrees) % 360.00;
             if (adjustedBearingValue <0) adjustedBearingValue = 360.00 - Math.Abs(adjustedBearingValue);
@@ -1150,9 +1150,9 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board1
                 return;
             }
 
-            var magneticHeadingDegrees = double.IsInfinity(_magneticHeadingInputSignal.State) ||double.IsNaN(_magneticHeadingInputSignal.State) 
+            var magneticHeadingDegrees = double.IsInfinity(_magneticHeadingInputSignal.CorrelatedState) ||double.IsNaN(_magneticHeadingInputSignal.CorrelatedState) 
                 ? 0
-                : _magneticHeadingInputSignal.State % 360.00;
+                : _magneticHeadingInputSignal.CorrelatedState % 360.00;
             _magneticHeadingOutputSignal.State = CalibratedHeadingValue(magneticHeadingDegrees);
         }
 

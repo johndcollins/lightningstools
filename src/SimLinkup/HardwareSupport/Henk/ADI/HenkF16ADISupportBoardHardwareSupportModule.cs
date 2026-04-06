@@ -496,7 +496,8 @@ namespace SimLinkup.HardwareSupport.Henk.ADI
                 SourceAddress = null,
                 State = 424,
                 MinValue = 140,
-                MaxValue = 700
+                MaxValue = 700,
+                Precision = 0
             };
 
             return thisSignal;
@@ -614,7 +615,8 @@ namespace SimLinkup.HardwareSupport.Henk.ADI
                 SourceAddress = null,
                 State = 512,
                 MinValue = 0,
-                MaxValue = 1023
+                MaxValue = 1023,
+                Precision = 0
             };
             return thisSignal;
         }
@@ -992,7 +994,7 @@ namespace SimLinkup.HardwareSupport.Henk.ADI
         {
             if (_pitchInputSignal != null && _pitchOutputSignal != null)
             {
-                _pitchOutputSignal.State = 424 + _pitchInputSignal.State / 90.000 * 255.000;
+                _pitchOutputSignal.State = 424 + _pitchInputSignal.CorrelatedState / 90.000 * 255.000;
             }
         }
 
@@ -1016,7 +1018,7 @@ namespace SimLinkup.HardwareSupport.Henk.ADI
         {
             if (_rollInputSignal != null && _rollOutputSignal != null)
             {
-                _rollOutputSignal.State = 512.000 + _rollInputSignal.State / 180.000 * 512.000;
+                _rollOutputSignal.State = 512.000 + _rollInputSignal.CorrelatedState / 180.000 * 512.000;
             }
         }
 

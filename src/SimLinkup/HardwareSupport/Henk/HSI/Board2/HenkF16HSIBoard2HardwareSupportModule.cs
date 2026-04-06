@@ -369,22 +369,21 @@ namespace SimLinkup.HardwareSupport.Henk.HSI.Board2
         }
         public override void Render(Graphics g, Rectangle destinationRectangle)
         {
-            _renderer.InstrumentState.BearingToBeaconDegrees = (float)_bearingInputSignal.State;
+            _renderer.InstrumentState.BearingToBeaconDegrees = (float)_bearingInputSignal.CorrelatedState;
             _renderer.InstrumentState.CourseDeviationDegrees = (float)_courseDeviationInputSignal.State;
             _renderer.InstrumentState.CourseDeviationLimitDegrees = (float)_courseDeviationLimitInputSignal.State;
-            _renderer.InstrumentState.DesiredCourseDegrees = (int)_courseInputSignal.State;
-            _renderer.InstrumentState.DesiredHeadingDegrees = (int)_desiredHeadingFromSimInputSignal.State;
+            _renderer.InstrumentState.DesiredCourseDegrees = (int)_courseInputSignal.CorrelatedState;
+            _renderer.InstrumentState.DesiredHeadingDegrees = (int)_desiredHeadingFromSimInputSignal.CorrelatedState;
             _renderer.InstrumentState.DeviationInvalidFlag = _deviationInvalidFlagInputSignal.State;
             _renderer.InstrumentState.DistanceToBeaconNauticalMiles = (float)_rangeInputSignal.State;
             _renderer.InstrumentState.DmeInvalidFlag = _rangeInvalidFlagInputSignal.State;
             _renderer.InstrumentState.FromFlag = _fromFlagInputSignal.State;
-            _renderer.InstrumentState.MagneticHeadingDegrees = (float)_magneticHeadingInputSignal.State;
+            _renderer.InstrumentState.MagneticHeadingDegrees = (float)_magneticHeadingInputSignal.CorrelatedState;
             _renderer.InstrumentState.OffFlag = _offFlagInputSignal.State;
             _renderer.InstrumentState.ShowToFromFlag = true;
             _renderer.InstrumentState.ToFlag = _toFlagInputSignal.State;
             _renderer.Render(g, destinationRectangle);
         }
-
         private void CreateInputSignals()
         {
             _offFlagInputSignal = CreateOffFlagInputSignal();
