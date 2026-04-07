@@ -61,7 +61,7 @@ namespace SimLinkup.HardwareSupport.Gould
 
         public override void Render(Graphics g, Rectangle destinationRectangle)
         {
-            _compass.InstrumentState.MagneticHeadingDegrees = (float) _compassInputSignal.State;
+            _compass.InstrumentState.MagneticHeadingDegrees = (float) _compassInputSignal.CorrelatedState;
             _compass.Render(g, destinationRectangle);
         }
 
@@ -194,7 +194,7 @@ namespace SimLinkup.HardwareSupport.Gould
         private void UpdateOutputValues()
         {
             if (_compassInputSignal == null) return;
-            var compassInput = Math.Abs(_compassInputSignal.State % 360.000);
+            var compassInput = Math.Abs(_compassInputSignal.CorrelatedState % 360.000);
             if (_compassSINOutputSignal != null)
             {
                 var compassSINOutputValue = 10.0000 * Math.Sin(compassInput * Constants.RADIANS_PER_DEGREE);
