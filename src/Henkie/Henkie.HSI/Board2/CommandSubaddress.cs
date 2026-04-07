@@ -128,9 +128,6 @@ namespace Henkie.HSI.Board2
         /// </summary>
         LOAD_COURSE_SYNCHRO_EXCITER_OFFSET_STATOR_COIL_MASK = 22,
         /// <summary>
-
-
-        /// <summary>
         ///   Set value of user-defined digital output A; 0=logic zero (false), 1=logic one (true)
         /// </summary>
         DIG_OUT_A = 23,
