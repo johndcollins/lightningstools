@@ -281,7 +281,7 @@ namespace F4Utils.SimSupport
                     break;
 
                 case F4SimOutputs.COMPASS__MAGNETIC_HEADING_DEGREES:
-                    SetOutput((AnalogSignal) output, (360 + _lastFlightData.yaw / Constants.RADIANS_PER_DEGREE) % 360);
+                    SetOutput((AnalogSignal) output, (360 + _lastFlightData.currentHeading) % 360);
                     break;
 
                 case F4SimOutputs.GEAR_PANEL__GEAR_POSITION:
