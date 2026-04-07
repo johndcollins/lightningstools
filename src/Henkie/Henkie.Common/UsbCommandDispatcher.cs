@@ -15,6 +15,8 @@ namespace Henkie.Common
         private System.Timers.Timer _commandSendingTimer;
         private readonly bool _useCommandSendingTimer = true;
         private object _lockObj = new object();
+        private int _minimumCommandSendingIntervalMilliseconds = 20;
+
         private struct UsbCommand
         {
             public byte Subaddress { get; set; }
@@ -29,7 +31,7 @@ namespace Henkie.Common
             StartCommandSendingTimer();
         }
 
-        public UsbCommandDispatcher(string COMPort, Type commandSubaddresses = null)
+        public UsbCommandDispatcher(string COMPort, Type commandSubaddresses = null, bool useCommandSendingTimer = true)
         {
             if (commandSubaddresses != null)
             {
@@ -37,13 +39,17 @@ namespace Henkie.Common
                 _useCommandSendingTimer = true;
             }
             SerialPortConnection = new SerialPortConnection(COMPort);
-            StartCommandSendingTimer();
+            _useCommandSendingTimer = useCommandSendingTimer;
+            if (_useCommandSendingTimer)
+            {
+                StartCommandSendingTimer();
+            }
         }
         private void StartCommandSendingTimer()
         {
             if (_useCommandSendingTimer)
             {
-                _commandSendingTimer = new System.Timers.Timer(30)
+                _commandSendingTimer = new System.Timers.Timer(_minimumCommandSendingIntervalMilliseconds)
                 {
                     AutoReset = true,
                 };
