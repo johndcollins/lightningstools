@@ -78,6 +78,19 @@ namespace F4SharedMemTester
                     case "RTT_area":PopulateArray(flightData2Struct.RTT_area, attribute.Value); break;
                     case "ecmBits":PopulateEnumArray<EcmBits>(flightData2Struct.ecmBits, attribute.Value); break;
                     case "RWRjammingStatus":PopulateEnumArray<JammingStates>(flightData2Struct.RWRjammingStatus, attribute.Value); break;
+                    case "radio2_preset": int.TryParse(attribute.Value, out flightData2Struct.radio2_preset); break;
+                    case "radio2_frequency": int.TryParse(attribute.Value, out flightData2Struct.radio2_frequency); break;
+                    case "iffTransponderActiveCode1": sbyte.TryParse(attribute.Value, out flightData2Struct.iffTransponderActiveCode1); break;
+                    case "iffTransponderActiveCode2": short.TryParse(attribute.Value, out flightData2Struct.iffTransponderActiveCode2); break;
+                    case "iffTransponderActiveCode3A": short.TryParse(attribute.Value, out flightData2Struct.iffTransponderActiveCode3A); break;
+                    case "iffTransponderActiveCodeC": short.TryParse(attribute.Value, out flightData2Struct.iffTransponderActiveCodeC); break;
+                    case "iffTransponderActiveCode4": short.TryParse(attribute.Value, out flightData2Struct.iffTransponderActiveCode4); break;
+                    case "tacan_ils_frequency": int.TryParse(attribute.Value, out flightData2Struct.tacan_ils_frequency); break;
+                    case "desired_RTT_FPS": int.TryParse(attribute.Value, out flightData2Struct.desired_RTT_FPS); break;
+                    case "sideSlipdeg": float.TryParse(attribute.Value, out flightData2Struct.sideSlipdeg); break;
+                    case "gsMax": float.TryParse(attribute.Value, out flightData2Struct.gsMax); break;
+                    case "gsMin": float.TryParse(attribute.Value, out flightData2Struct.gsMin); break;
+
                     default:
                         break;
 
