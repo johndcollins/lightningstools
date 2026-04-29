@@ -1,17 +1,20 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Runtime.Remoting;
 using Common.HardwareSupport;
+using Common.HardwareSupport.Calibration;
 using Common.MacroProgramming;
-using Common.Math;
 using LightningGauges.Renderers.F16;
+using log4net;
 
 namespace SimLinkup.HardwareSupport.AMI
 {
     //AMI 90002620-01 F-16 Cabin Pressure Altimeter
     public class AMI9000262001HardwareSupportModule : HardwareSupportModuleBase, IDisposable
     {
+        private static readonly ILog _log = LogManager.GetLogger(typeof(AMI9000262001HardwareSupportModule));
         private readonly ICabinPressureAltitudeIndicator _renderer = new CabinPressureAltitudeIndicator();
 
         private AnalogSignal _cabinPressureAltitudeInputSignal;
@@ -20,12 +23,79 @@ namespace SimLinkup.HardwareSupport.AMI
 
         private bool _isDisposed;
 
-        private AMI9000262001HardwareSupportModule()
+        private AMI9000262001HardwareSupportModuleConfig _config;
+        private GaugeChannelConfig _cabinAltChannel;
+        private FileSystemWatcher _configFileWatcher;
+        private DateTime _lastConfigModified = DateTime.MinValue;
+
+        public AMI9000262001HardwareSupportModule(AMI9000262001HardwareSupportModuleConfig config)
         {
+            _config = config;
+            ResolveAllChannels(config);
             CreateInputSignals();
             CreateOutputSignals();
             CreateInputEventHandlers();
             RegisterForInputEvents();
+            StartConfigWatcher();
+        }
+
+        private void ResolveAllChannels(GaugeCalibrationConfig config)
+        {
+            _cabinAltChannel = ResolvePiecewiseChannel(config, "9000262001_Cabin_Pressure_Altitude_To_Instrument");
+        }
+
+        private static GaugeChannelConfig ResolvePiecewiseChannel(GaugeCalibrationConfig config, string channelId)
+        {
+            if (config == null) return null;
+            var ch = config.FindChannel(channelId);
+            if (ch != null
+                && ch.Transform != null
+                && ch.Transform.Kind == "piecewise"
+                && ch.Transform.Breakpoints != null
+                && ch.Transform.Breakpoints.Length >= 2)
+            {
+                return ch;
+            }
+            return null;
+        }
+
+        private void StartConfigWatcher()
+        {
+            if (_config == null || string.IsNullOrEmpty(_config.FilePath)) return;
+            try
+            {
+                _lastConfigModified = File.GetLastWriteTime(_config.FilePath);
+                _configFileWatcher = new FileSystemWatcher(
+                    Path.GetDirectoryName(_config.FilePath),
+                    Path.GetFileName(_config.FilePath));
+                _configFileWatcher.Changed += _config_Changed;
+                _configFileWatcher.EnableRaisingEvents = true;
+            }
+            catch (Exception e)
+            {
+                _log.Error(e.Message, e);
+            }
+        }
+
+        private void _config_Changed(object sender, FileSystemEventArgs e)
+        {
+            try
+            {
+                var configFile = _config != null ? _config.FilePath : null;
+                if (string.IsNullOrEmpty(configFile)) return;
+                var lastWrite = File.GetLastWriteTime(configFile);
+                if (lastWrite == _lastConfigModified) return;
+                var reloaded = AMI9000262001HardwareSupportModuleConfig.Load(configFile);
+                if (reloaded == null) return;
+                reloaded.FilePath = configFile;
+                _config = reloaded;
+                ResolveAllChannels(reloaded);
+                _lastConfigModified = lastWrite;
+            }
+            catch (Exception ex)
+            {
+                _log.Error(ex.Message, ex);
+            }
         }
 
         public override AnalogSignal[] AnalogInputs => new[] { _cabinPressureAltitudeInputSignal };
@@ -52,12 +122,23 @@ namespace SimLinkup.HardwareSupport.AMI
 
         public static IHardwareSupportModule[] GetInstances()
         {
-            var toReturn = new List<IHardwareSupportModule>
+            AMI9000262001HardwareSupportModuleConfig hsmConfig = null;
+            try
             {
-                new AMI9000262001HardwareSupportModule()
-            };
-
-            return toReturn.ToArray();
+                var hsmConfigFilePath = Path.Combine(
+                    Util.CurrentMappingProfileDirectory,
+                    "AMI9000262001HardwareSupportModule.config");
+                hsmConfig = AMI9000262001HardwareSupportModuleConfig.Load(hsmConfigFilePath);
+                if (hsmConfig != null)
+                {
+                    hsmConfig.FilePath = hsmConfigFilePath;
+                }
+            }
+            catch (Exception e)
+            {
+                _log.Error(e.Message, e);
+            }
+            return new IHardwareSupportModule[] { new AMI9000262001HardwareSupportModule(hsmConfig) };
         }
 
         public override void Render(Graphics g, Rectangle destinationRectangle)
@@ -140,6 +221,12 @@ namespace SimLinkup.HardwareSupport.AMI
                     UnregisterForInputEvents();
                     AbandonInputEventHandlers();
                     Common.Util.DisposeObject(_renderer);
+                    if (_configFileWatcher != null)
+                    {
+                        try { _configFileWatcher.EnableRaisingEvents = false; } catch { }
+                        try { _configFileWatcher.Dispose(); } catch { }
+                        _configFileWatcher = null;
+                    }
                 }
             }
             _isDisposed = true;
@@ -171,32 +258,33 @@ namespace SimLinkup.HardwareSupport.AMI
 
         private void UpdateCabinPressureAltitudeOutputValues()
         {
-            if (_cabinPressureAltitudeInputSignal != null)
+            if (_cabinPressureAltitudeInputSignal == null) return;
+            if (_cabinPressureAltitudeOutputSignal == null) return;
+            var cabinPressureAltitudeInput = _cabinPressureAltitudeInputSignal.State;
+
+            // Editor override: piecewise channel.
+            if (_cabinAltChannel != null)
             {
-                var cabinPressureAltitudeInput = _cabinPressureAltitudeInputSignal.State;
-
-                var degrees = cabinPressureAltitudeInput < 0.0000
-                    ? 0.0000
-                    : (cabinPressureAltitudeInput >= 0 && cabinPressureAltitudeInput <= 50000.0000
-                        ? cabinPressureAltitudeInput / 50000.0000 * 300.0000
-                        : 300.0);
-
-                var cabinPressureAltitudeOutputValue = ((degrees / 300.00) * 20.00) - 10.00;
-
-                if (_cabinPressureAltitudeOutputSignal != null)
-                {
-                    if (cabinPressureAltitudeOutputValue < -10)
-                    {
-                        cabinPressureAltitudeOutputValue = -10;
-                    }
-                    else if (cabinPressureAltitudeOutputValue > 10)
-                    {
-                        cabinPressureAltitudeOutputValue = 10;
-                    }
-
-                    _cabinPressureAltitudeOutputSignal.State = cabinPressureAltitudeOutputValue;
-                }
+                var v = GaugeTransform.EvaluatePiecewise(
+                    cabinPressureAltitudeInput,
+                    _cabinAltChannel.Transform.Breakpoints);
+                _cabinPressureAltitudeOutputSignal.State = _cabinAltChannel.ApplyTrim(
+                    v,
+                    _cabinPressureAltitudeOutputSignal.MinValue,
+                    _cabinPressureAltitudeOutputSignal.MaxValue);
+                return;
             }
+
+            // Hardcoded fallback — 0..50000 ft → -10..+10 V linear.
+            var degrees = cabinPressureAltitudeInput < 0.0000
+                ? 0.0000
+                : (cabinPressureAltitudeInput >= 0 && cabinPressureAltitudeInput <= 50000.0000
+                    ? cabinPressureAltitudeInput / 50000.0000 * 300.0000
+                    : 300.0);
+            var cabinPressureAltitudeOutputValue = ((degrees / 300.00) * 20.00) - 10.00;
+            if (cabinPressureAltitudeOutputValue < -10) cabinPressureAltitudeOutputValue = -10;
+            else if (cabinPressureAltitudeOutputValue > 10) cabinPressureAltitudeOutputValue = 10;
+            _cabinPressureAltitudeOutputSignal.State = cabinPressureAltitudeOutputValue;
         }
     }
 }

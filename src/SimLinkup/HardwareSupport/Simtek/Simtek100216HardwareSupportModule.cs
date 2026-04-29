@@ -1,17 +1,29 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Runtime.Remoting;
 using Common.HardwareSupport;
+using Common.HardwareSupport.Calibration;
 using Common.MacroProgramming;
 using LightningGauges.Renderers.F16;
+using log4net;
 
 namespace SimLinkup.HardwareSupport.Simtek
 {
-    //Simtek 10-0216 F-16 FTIT Indicator
+    //Simtek 10-0216 F-16 FTIT Indicator (piecewise: 200..1200°C → ±10 V)
     public class Simtek100216HardwareSupportModule : HardwareSupportModuleBase, IDisposable
     {
+        private static readonly ILog _log = LogManager.GetLogger(typeof(Simtek100216HardwareSupportModule));
         private readonly IFanTurbineInletTemperature _renderer = new FanTurbineInletTemperature();
+
+        // Editor-authored calibration. Same hot-reload contract as the other
+        // piecewise gauges (Simtek 10-0207, 10-0207_110, 10-0194 airspeed).
+        private Simtek100216HardwareSupportModuleConfig _config;
+        private GaugeChannelConfig _ftitCalibration;
+
+        private FileSystemWatcher _configFileWatcher;
+        private DateTime _lastConfigModified = DateTime.MinValue;
 
         private AnalogSignal _ftitInputSignal;
         private AnalogSignal.AnalogSignalChangedEventHandler _ftitInputSignalChangedEventHandler;
@@ -19,12 +31,71 @@ namespace SimLinkup.HardwareSupport.Simtek
 
         private bool _isDisposed;
 
-        private Simtek100216HardwareSupportModule()
+        public Simtek100216HardwareSupportModule(Simtek100216HardwareSupportModuleConfig config)
         {
+            _config = config;
+            _ftitCalibration = ResolvePiecewiseChannel(config, "100216_FTIT_To_Instrument");
             CreateInputSignals();
             CreateOutputSignals();
             CreateInputEventHandlers();
             RegisterForInputEvents();
+            StartConfigWatcher();
+        }
+
+        // Same helper as the other piecewise gauges: only return the channel
+        // when it carries a usable piecewise table; null otherwise.
+        private static GaugeChannelConfig ResolvePiecewiseChannel(GaugeCalibrationConfig config, string channelId)
+        {
+            if (config == null) return null;
+            var ch = config.FindChannel(channelId);
+            if (ch != null
+                && ch.Transform != null
+                && ch.Transform.Kind == "piecewise"
+                && ch.Transform.Breakpoints != null
+                && ch.Transform.Breakpoints.Length >= 2)
+            {
+                return ch;
+            }
+            return null;
+        }
+
+        private void StartConfigWatcher()
+        {
+            if (_config == null || string.IsNullOrEmpty(_config.FilePath)) return;
+            try
+            {
+                _lastConfigModified = File.GetLastWriteTime(_config.FilePath);
+                _configFileWatcher = new FileSystemWatcher(
+                    Path.GetDirectoryName(_config.FilePath),
+                    Path.GetFileName(_config.FilePath));
+                _configFileWatcher.Changed += _config_Changed;
+                _configFileWatcher.EnableRaisingEvents = true;
+            }
+            catch (Exception e)
+            {
+                _log.Error(e.Message, e);
+            }
+        }
+
+        private void _config_Changed(object sender, FileSystemEventArgs e)
+        {
+            try
+            {
+                var configFile = _config != null ? _config.FilePath : null;
+                if (string.IsNullOrEmpty(configFile)) return;
+                var lastWrite = File.GetLastWriteTime(configFile);
+                if (lastWrite == _lastConfigModified) return;
+                var reloaded = Simtek100216HardwareSupportModuleConfig.Load(configFile);
+                if (reloaded == null) return;
+                reloaded.FilePath = configFile;
+                _config = reloaded;
+                _ftitCalibration = ResolvePiecewiseChannel(reloaded, "100216_FTIT_To_Instrument");
+                _lastConfigModified = lastWrite;
+            }
+            catch (Exception ex)
+            {
+                _log.Error(ex.Message, ex);
+            }
         }
 
         public override AnalogSignal[] AnalogInputs => new[] {_ftitInputSignal};
@@ -50,12 +121,23 @@ namespace SimLinkup.HardwareSupport.Simtek
 
         public static IHardwareSupportModule[] GetInstances()
         {
-            var toReturn = new List<IHardwareSupportModule>
+            Simtek100216HardwareSupportModuleConfig hsmConfig = null;
+            try
             {
-                new Simtek100216HardwareSupportModule()
-            };
-
-            return toReturn.ToArray();
+                var hsmConfigFilePath = Path.Combine(
+                    Util.CurrentMappingProfileDirectory,
+                    "Simtek100216HardwareSupportModule.config");
+                hsmConfig = Simtek100216HardwareSupportModuleConfig.Load(hsmConfigFilePath);
+                if (hsmConfig != null)
+                {
+                    hsmConfig.FilePath = hsmConfigFilePath;
+                }
+            }
+            catch (Exception e)
+            {
+                _log.Error(e.Message, e);
+            }
+            return new IHardwareSupportModule[] { new Simtek100216HardwareSupportModule(hsmConfig) };
         }
 
         public override void Render(Graphics g, Rectangle destinationRectangle)
@@ -133,6 +215,12 @@ namespace SimLinkup.HardwareSupport.Simtek
                     UnregisterForInputEvents();
                     AbandonInputEventHandlers();
                     Common.Util.DisposeObject(_renderer);
+                    if (_configFileWatcher != null)
+                    {
+                        try { _configFileWatcher.EnableRaisingEvents = false; } catch { }
+                        try { _configFileWatcher.Dispose(); } catch { }
+                        _configFileWatcher = null;
+                    }
                 }
             }
             _isDisposed = true;
@@ -173,6 +261,17 @@ namespace SimLinkup.HardwareSupport.Simtek
                 double ftitOutputValue = 0;
                 if (_ftitOutputSignal != null)
                 {
+                    // Editor-authored override: when a .config file declared
+                    // a piecewise table for this channel, use the generic
+                    // evaluator and per-channel trim. Falls through to the
+                    // hardcoded if/else below when no config is present.
+                    if (_ftitCalibration != null)
+                    {
+                        var v = GaugeTransform.EvaluatePiecewise(ftitInput, _ftitCalibration.Transform.Breakpoints);
+                        _ftitOutputSignal.State = _ftitCalibration.ApplyTrim(v, _ftitOutputSignal.MinValue, _ftitOutputSignal.MaxValue);
+                        return;
+                    }
+
                     if (ftitInput <= 200)
                     {
                         ftitOutputValue = -10;

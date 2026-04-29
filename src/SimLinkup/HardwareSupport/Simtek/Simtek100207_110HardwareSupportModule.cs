@@ -1,29 +1,103 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Runtime.Remoting;
 using Common.HardwareSupport;
+using Common.HardwareSupport.Calibration;
 using Common.MacroProgramming;
 using LightningGauges.Renderers.F16;
+using log4net;
 
 namespace SimLinkup.HardwareSupport.Simtek
 {
-    //Simtek 10-0207 F-16 RPM Indicator
+    //Simtek 10-0207_110 F-16 RPM Indicator (v2 — wider input range, looser table)
     public class Simtek100207_110HardwareSupportModule : HardwareSupportModuleBase, IDisposable
     {
+        private static readonly ILog _log = LogManager.GetLogger(typeof(Simtek100207_110HardwareSupportModule));
         private readonly ITachometer _renderer = new Tachometer();
+
+        // Editor-authored calibration. Same shape and hot-reload contract as
+        // Simtek100207HardwareSupportModule — see that class for the full
+        // explanation of the pattern. Both gauges emit the same RPM port id
+        // ("100207_RPM_To_Instrument") but read from separate .config files
+        // (basename keyed by class short name) so they don't conflict.
+        private Simtek100207_110HardwareSupportModuleConfig _config;
+        private GaugeChannelConfig _rpmCalibration;
+
+        private FileSystemWatcher _configFileWatcher;
+        private DateTime _lastConfigModified = DateTime.MinValue;
 
         private bool _isDisposed;
         private AnalogSignal _rpmInputSignal;
         private AnalogSignal.AnalogSignalChangedEventHandler _rpmInputSignalChangedEventHandler;
         private AnalogSignal _rpmOutputSignal;
 
-        private Simtek100207_110HardwareSupportModule()
+        public Simtek100207_110HardwareSupportModule(Simtek100207_110HardwareSupportModuleConfig config)
         {
+            _config = config;
+            _rpmCalibration = ResolvePiecewiseChannel(config, "100207_RPM_To_Instrument");
             CreateInputSignals();
             CreateOutputSignals();
             CreateInputEventHandlers();
             RegisterForInputEvents();
+            StartConfigWatcher();
+        }
+
+        // Same helper as Simtek100207: only return the channel when it carries
+        // a usable piecewise table; null otherwise.
+        private static GaugeChannelConfig ResolvePiecewiseChannel(GaugeCalibrationConfig config, string channelId)
+        {
+            if (config == null) return null;
+            var ch = config.FindChannel(channelId);
+            if (ch != null
+                && ch.Transform != null
+                && ch.Transform.Kind == "piecewise"
+                && ch.Transform.Breakpoints != null
+                && ch.Transform.Breakpoints.Length >= 2)
+            {
+                return ch;
+            }
+            return null;
+        }
+
+        private void StartConfigWatcher()
+        {
+            if (_config == null || string.IsNullOrEmpty(_config.FilePath)) return;
+            try
+            {
+                _lastConfigModified = File.GetLastWriteTime(_config.FilePath);
+                _configFileWatcher = new FileSystemWatcher(
+                    Path.GetDirectoryName(_config.FilePath),
+                    Path.GetFileName(_config.FilePath));
+                _configFileWatcher.Changed += _config_Changed;
+                _configFileWatcher.EnableRaisingEvents = true;
+            }
+            catch (Exception e)
+            {
+                _log.Error(e.Message, e);
+            }
+        }
+
+        private void _config_Changed(object sender, FileSystemEventArgs e)
+        {
+            try
+            {
+                var configFile = _config != null ? _config.FilePath : null;
+                if (string.IsNullOrEmpty(configFile)) return;
+                var lastWrite = File.GetLastWriteTime(configFile);
+                if (lastWrite == _lastConfigModified) return;
+                var reloaded = Simtek100207_110HardwareSupportModuleConfig.Load(configFile);
+                if (reloaded == null) return;
+                reloaded.FilePath = configFile;
+                _config = reloaded;
+                _rpmCalibration = ResolvePiecewiseChannel(reloaded, "100207_RPM_To_Instrument");
+                _lastConfigModified = lastWrite;
+            }
+            catch (Exception ex)
+            {
+                _log.Error(ex.Message, ex);
+            }
         }
 
         public override AnalogSignal[] AnalogInputs => new[] {_rpmInputSignal};
@@ -49,12 +123,23 @@ namespace SimLinkup.HardwareSupport.Simtek
 
         public static IHardwareSupportModule[] GetInstances()
         {
-            var toReturn = new List<IHardwareSupportModule>
+            Simtek100207_110HardwareSupportModuleConfig hsmConfig = null;
+            try
             {
-                new Simtek100207_110HardwareSupportModule()
-            };
-
-            return toReturn.ToArray();
+                var hsmConfigFilePath = Path.Combine(
+                    Util.CurrentMappingProfileDirectory,
+                    "Simtek100207_110HardwareSupportModule.config");
+                hsmConfig = Simtek100207_110HardwareSupportModuleConfig.Load(hsmConfigFilePath);
+                if (hsmConfig != null)
+                {
+                    hsmConfig.FilePath = hsmConfigFilePath;
+                }
+            }
+            catch (Exception e)
+            {
+                _log.Error(e.Message, e);
+            }
+            return new IHardwareSupportModule[] { new Simtek100207_110HardwareSupportModule(hsmConfig) };
         }
 
         public override void Render(Graphics g, Rectangle destinationRectangle)
@@ -132,6 +217,12 @@ namespace SimLinkup.HardwareSupport.Simtek
                     UnregisterForInputEvents();
                     AbandonInputEventHandlers();
                     Common.Util.DisposeObject(_renderer);
+                    if (_configFileWatcher != null)
+                    {
+                        try { _configFileWatcher.EnableRaisingEvents = false; } catch { }
+                        try { _configFileWatcher.Dispose(); } catch { }
+                        _configFileWatcher = null;
+                    }
                 }
             }
             _isDisposed = true;
@@ -172,6 +263,17 @@ namespace SimLinkup.HardwareSupport.Simtek
                 double rpmOutputValue = 0;
                 if (_rpmOutputSignal != null)
                 {
+                    // Editor-authored override: when a .config file declared a
+                    // piecewise table for this channel, use the generic
+                    // evaluator and per-channel trim. Falls through to the
+                    // hardcoded if/else below when no config is present.
+                    if (_rpmCalibration != null)
+                    {
+                        var v = GaugeTransform.EvaluatePiecewise(rpmInput, _rpmCalibration.Transform.Breakpoints);
+                        _rpmOutputSignal.State = _rpmCalibration.ApplyTrim(v, _rpmOutputSignal.MinValue, _rpmOutputSignal.MaxValue);
+                        return;
+                    }
+
                     if (rpmInput < 20)
                     {
                         rpmOutputValue = Math.Max(-10, -10.0 + rpmInput / 20.0 * 1.89);

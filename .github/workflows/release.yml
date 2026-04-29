@@ -1,0 +1,111 @@
+name: Release SimLinkup
+
+# Builds the SimLinkup MSI installer and attaches it to a GitHub Release
+# whenever a tag matching `v*` (e.g. `v1.0.0`, `simlinkup-v1.0.0-beta`)
+# is pushed.
+#
+# Usage:
+#   git tag v1.0.0
+#   git push origin v1.0.0
+#
+# The workflow installs the Visual Studio Installer Projects extension on
+# the runner — that's the piece `devenv /Build` needs to compile the
+# .vdproj setup project. windows-latest already has VS 2022 Enterprise +
+# MSBuild, so the only extra step is the extension.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:    # lets you trigger manually from the Actions tab
+
+permissions:
+  contents: write       # required to create/update Releases and upload assets
+
+jobs:
+  build:
+    name: Build SimLinkup MSI
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # The .vdproj setup project requires the "Microsoft Visual Studio
+      # Installer Projects" extension. It's NOT part of a stock VS install —
+      # we have to install it on the runner before devenv can build the
+      # project. This VSIX is the official Microsoft extension.
+      - name: Install Visual Studio Installer Projects extension
+        shell: pwsh
+        run: |
+          $vsixUrl = 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/VisualStudioClient/vsextensions/MicrosoftVisualStudio2022InstallerProjects/0.0.0/vspackage'
+          $vsixPath = "$env:RUNNER_TEMP\InstallerProjects.vsix"
+          Write-Host "Downloading VS Installer Projects extension..."
+          Invoke-WebRequest -Uri $vsixUrl -OutFile $vsixPath -UseBasicParsing
+          $vsixInstaller = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\resources\app\ServiceHub\Services\Microsoft.VisualStudio.Setup.Service\VSIXInstaller.exe"
+          if (-not (Test-Path $vsixInstaller)) {
+            $vsixInstaller = (Get-ChildItem 'C:\Program Files\Microsoft Visual Studio' -Recurse -Filter 'VSIXInstaller.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          }
+          Write-Host "Installing $vsixPath via $vsixInstaller"
+          $proc = Start-Process -FilePath $vsixInstaller -ArgumentList "/quiet","/admin","$vsixPath" -Wait -PassThru
+          Write-Host "VSIXInstaller exit code: $($proc.ExitCode)"
+          # Exit codes: 0 = success, 1001 = already installed (also fine).
+          if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 1001) {
+            throw "VSIXInstaller failed with exit code $($proc.ExitCode)"
+          }
+
+      - name: Restore NuGet packages
+        # The solution still uses old-style packages.config in places —
+        # nuget restore handles both that and the newer PackageReference
+        # projects. Run from the SimLinkup folder so it picks up the
+        # solution-relative packages.
+        shell: pwsh
+        run: nuget restore src\SimLinkup\SimLinkup.sln
+
+      - name: Build solution (Release|Any CPU)
+        # We build the solution first so all project dependencies of the
+        # setup project (SimLinkup.exe + every referenced HSM assembly +
+        # all the supporting Common.* dlls) are produced before the
+        # setup project tries to harvest them.
+        shell: pwsh
+        run: msbuild src\SimLinkup\SimLinkup.sln /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal /m
+
+      - name: Build SimLinkupSetup.msi
+        # devenv /Build is required for .vdproj — msbuild doesn't know how
+        # to build them. The extension installed above is what gives
+        # devenv that capability.
+        shell: pwsh
+        run: |
+          $devenv = (Get-ChildItem 'C:\Program Files\Microsoft Visual Studio' -Recurse -Filter 'devenv.com' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $devenv) { throw "devenv.com not found on runner" }
+          Write-Host "Using $devenv"
+          & $devenv "src\SimLinkup\SimLinkup.sln" /Build "Release" /Project "SimLinkupSetup" /ProjectConfig "Release"
+          if ($LASTEXITCODE -ne 0) { throw "devenv build failed with exit $LASTEXITCODE" }
+
+      - name: Locate built MSI
+        id: locate
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem -Path src\SimLinkup\SimLinkupSetup -Recurse -Filter SimLinkupSetup.msi -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $msi) { throw "SimLinkupSetup.msi not found after build" }
+          Write-Host "Found: $($msi.FullName)"
+          "msi_path=$($msi.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Upload MSI as workflow artifact
+        # Always uploaded so manual workflow_dispatch runs (no tag) still
+        # produce a downloadable build. Release upload below only fires
+        # on tag pushes.
+        uses: actions/upload-artifact@v4
+        with:
+          name: SimLinkupSetup
+          path: ${{ steps.locate.outputs.msi_path }}
+
+      - name: Upload MSI to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.locate.outputs.msi_path }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

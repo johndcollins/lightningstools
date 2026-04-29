@@ -1,17 +1,31 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Runtime.Remoting;
 using Common.HardwareSupport;
+using Common.HardwareSupport.Calibration;
 using Common.MacroProgramming;
 using LightningGauges.Renderers.F16;
+using log4net;
 
 namespace SimLinkup.HardwareSupport.Simtek
 {
-    //Simtek 10-0581-02 F-16 VVI Indicator
+    //Simtek 10-0581-02 F-16 VVI Indicator (piecewise: -6000..+6000 FPM → ±10 V; 0 FPM at +1.83 V)
     public class Simtek10058102HardwareSupportModule : HardwareSupportModuleBase, IDisposable
     {
+        private static readonly ILog _log = LogManager.GetLogger(typeof(Simtek10058102HardwareSupportModule));
         private readonly IVerticalVelocityIndicatorUSA _renderer = new VerticalVelocityIndicatorUSA();
+
+        // Editor-authored calibration. Default ships the 8 spec-sheet
+        // test points from the gauge's drawing (Table 1 on sheet 4). Same
+        // shape as Simtek10058201 AoA: digital POWER-OFF input overrides
+        // to -10 V regardless of the VVI value when true.
+        private Simtek10058102HardwareSupportModuleConfig _config;
+        private GaugeChannelConfig _vviCalibration;
+
+        private FileSystemWatcher _configFileWatcher;
+        private DateTime _lastConfigModified = DateTime.MinValue;
 
         private bool _isDisposed;
 
@@ -21,12 +35,70 @@ namespace SimLinkup.HardwareSupport.Simtek
         private AnalogSignal.AnalogSignalChangedEventHandler _verticalVelocityInputSignalChangedEventHandler;
         private AnalogSignal _verticalVelocityOutputSignal;
 
-        private Simtek10058102HardwareSupportModule()
+        public Simtek10058102HardwareSupportModule(Simtek10058102HardwareSupportModuleConfig config)
         {
+            _config = config;
+            _vviCalibration = ResolvePiecewiseChannel(config, "10058102_Vertical_Velocity_To_Instrument");
             CreateInputSignals();
             CreateOutputSignals();
             CreateInputEventHandlers();
             RegisterForInputEvents();
+            StartConfigWatcher();
+        }
+
+        // Same helper as the other piecewise gauges.
+        private static GaugeChannelConfig ResolvePiecewiseChannel(GaugeCalibrationConfig config, string channelId)
+        {
+            if (config == null) return null;
+            var ch = config.FindChannel(channelId);
+            if (ch != null
+                && ch.Transform != null
+                && ch.Transform.Kind == "piecewise"
+                && ch.Transform.Breakpoints != null
+                && ch.Transform.Breakpoints.Length >= 2)
+            {
+                return ch;
+            }
+            return null;
+        }
+
+        private void StartConfigWatcher()
+        {
+            if (_config == null || string.IsNullOrEmpty(_config.FilePath)) return;
+            try
+            {
+                _lastConfigModified = File.GetLastWriteTime(_config.FilePath);
+                _configFileWatcher = new FileSystemWatcher(
+                    Path.GetDirectoryName(_config.FilePath),
+                    Path.GetFileName(_config.FilePath));
+                _configFileWatcher.Changed += _config_Changed;
+                _configFileWatcher.EnableRaisingEvents = true;
+            }
+            catch (Exception e)
+            {
+                _log.Error(e.Message, e);
+            }
+        }
+
+        private void _config_Changed(object sender, FileSystemEventArgs e)
+        {
+            try
+            {
+                var configFile = _config != null ? _config.FilePath : null;
+                if (string.IsNullOrEmpty(configFile)) return;
+                var lastWrite = File.GetLastWriteTime(configFile);
+                if (lastWrite == _lastConfigModified) return;
+                var reloaded = Simtek10058102HardwareSupportModuleConfig.Load(configFile);
+                if (reloaded == null) return;
+                reloaded.FilePath = configFile;
+                _config = reloaded;
+                _vviCalibration = ResolvePiecewiseChannel(reloaded, "10058102_Vertical_Velocity_To_Instrument");
+                _lastConfigModified = lastWrite;
+            }
+            catch (Exception ex)
+            {
+                _log.Error(ex.Message, ex);
+            }
         }
 
         public override AnalogSignal[] AnalogInputs => new[] {_verticalVelocityInputSignal};
@@ -52,12 +124,23 @@ namespace SimLinkup.HardwareSupport.Simtek
 
         public static IHardwareSupportModule[] GetInstances()
         {
-            var toReturn = new List<IHardwareSupportModule>
+            Simtek10058102HardwareSupportModuleConfig hsmConfig = null;
+            try
             {
-                new Simtek10058102HardwareSupportModule()
-            };
-
-            return toReturn.ToArray();
+                var hsmConfigFilePath = Path.Combine(
+                    Util.CurrentMappingProfileDirectory,
+                    "Simtek10058102HardwareSupportModule.config");
+                hsmConfig = Simtek10058102HardwareSupportModuleConfig.Load(hsmConfigFilePath);
+                if (hsmConfig != null)
+                {
+                    hsmConfig.FilePath = hsmConfigFilePath;
+                }
+            }
+            catch (Exception e)
+            {
+                _log.Error(e.Message, e);
+            }
+            return new IHardwareSupportModule[] { new Simtek10058102HardwareSupportModule(hsmConfig) };
         }
 
         public override void Render(Graphics g, Rectangle destinationRectangle)
@@ -170,6 +253,12 @@ namespace SimLinkup.HardwareSupport.Simtek
                     UnregisterForInputEvents();
                     AbandonInputEventHandlers();
                     Common.Util.DisposeObject(_renderer);
+                    if (_configFileWatcher != null)
+                    {
+                        try { _configFileWatcher.EnableRaisingEvents = false; } catch { }
+                        try { _configFileWatcher.Dispose(); } catch { }
+                        _configFileWatcher = null;
+                    }
                 }
             }
             _isDisposed = true;
@@ -226,6 +315,27 @@ namespace SimLinkup.HardwareSupport.Simtek
 
                 if (_verticalVelocityOutputSignal != null)
                 {
+                    // Editor-authored override: when a .config file declared
+                    // a piecewise table for this channel, evaluate via the
+                    // generic helper and per-channel trim. Power-off check
+                    // runs first regardless of config — gauge mechanism,
+                    // not calibratable. Falls through to the hardcoded
+                    // formula below when no config is present.
+                    if (_vviCalibration != null)
+                    {
+                        double v;
+                        if (vviPowerOff)
+                        {
+                            v = -10;
+                        }
+                        else
+                        {
+                            v = GaugeTransform.EvaluatePiecewise(vviInput, _vviCalibration.Transform.Breakpoints);
+                        }
+                        _verticalVelocityOutputSignal.State = _vviCalibration.ApplyTrim(v, _verticalVelocityOutputSignal.MinValue, _verticalVelocityOutputSignal.MaxValue);
+                        return;
+                    }
+
                     if (vviPowerOff)
                     {
                         vviOutputValue = -10;
