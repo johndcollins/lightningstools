@@ -40,18 +40,42 @@ jobs:
       - name: Install Visual Studio Installer Projects extension
         shell: pwsh
         run: |
-          $vsixUrl = 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/VisualStudioClient/vsextensions/MicrosoftVisualStudio2022InstallerProjects/0.0.0/vspackage'
+          # Query the marketplace API for the latest version. The /vspackage
+          # endpoint returns ExtensionAssetNotFoundException if you pass a
+          # placeholder version like 0.0.0; it needs a specific version
+          # number that actually exists. The extensionquery endpoint gives
+          # us the current version + a direct download URL.
+          $publisher = 'VisualStudioClient'
+          $extension = 'MicrosoftVisualStudio2022InstallerProjects'
+          $queryUrl = 'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery'
+          $queryBody = @{
+            filters = @(@{
+              criteria = @(
+                @{ filterType = 7; value = "$publisher.$extension" }
+              )
+            })
+            flags = 103
+          } | ConvertTo-Json -Depth 5
+
+          Write-Host "Querying marketplace for latest $publisher.$extension..."
+          $response = Invoke-RestMethod -Uri $queryUrl -Method Post `
+            -ContentType 'application/json' `
+            -Headers @{ Accept = 'application/json;api-version=3.0-preview.1' } `
+            -Body $queryBody
+          $latestVersion = $response.results[0].extensions[0].versions[0].version
+          Write-Host "Latest version: $latestVersion"
+
+          $vsixUrl = "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/$publisher/vsextensions/$extension/$latestVersion/vspackage"
           $vsixPath = "$env:RUNNER_TEMP\InstallerProjects.vsix"
-          Write-Host "Downloading VS Installer Projects extension..."
+          Write-Host "Downloading $vsixUrl"
           Invoke-WebRequest -Uri $vsixUrl -OutFile $vsixPath -UseBasicParsing
-          $vsixInstaller = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\resources\app\ServiceHub\Services\Microsoft.VisualStudio.Setup.Service\VSIXInstaller.exe"
-          if (-not (Test-Path $vsixInstaller)) {
-            $vsixInstaller = (Get-ChildItem 'C:\Program Files\Microsoft Visual Studio' -Recurse -Filter 'VSIXInstaller.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          }
-          Write-Host "Installing $vsixPath via $vsixInstaller"
+
+          $vsixInstaller = (Get-ChildItem 'C:\Program Files\Microsoft Visual Studio' -Recurse -Filter 'VSIXInstaller.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $vsixInstaller) { throw "VSIXInstaller.exe not found" }
+          Write-Host "Installing via $vsixInstaller"
           $proc = Start-Process -FilePath $vsixInstaller -ArgumentList "/quiet","/admin","$vsixPath" -Wait -PassThru
           Write-Host "VSIXInstaller exit code: $($proc.ExitCode)"
-          # Exit codes: 0 = success, 1001 = already installed (also fine).
+          # 0 = success, 1001 = already installed (also fine).
           if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 1001) {
             throw "VSIXInstaller failed with exit code $($proc.ExitCode)"
           }
