@@ -99,11 +99,16 @@ jobs:
           [System.IO.Compression.ZipFile]::ExtractToDirectory($vsixPath, $extDir)
 
           # Sanity check: the build target DLL must exist.
-          $buildDll = Get-ChildItem $extDir -Recurse -Filter 'Microsoft.VisualStudio.DeploymentProject*.dll' -ErrorAction SilentlyContinue | Select-Object -First 1
+          # In VSIX 3.0.0+ the DLL is bin\Microsoft.VisualStudio.InstallerProjects.dll
+          # (older versions used Microsoft.VisualStudio.DeploymentProject.dll).
+          $buildDll = Get-ChildItem $extDir -Recurse -Filter 'Microsoft.VisualStudio.InstallerProjects.dll' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $buildDll) {
+            $buildDll = Get-ChildItem $extDir -Recurse -Filter 'Microsoft.VisualStudio.DeploymentProject*.dll' -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
           if (-not $buildDll) {
             Write-Host "Files extracted:"
-            Get-ChildItem $extDir -Recurse -File | Select-Object -First 30 | ForEach-Object { Write-Host "  $($_.FullName)" }
-            throw "Microsoft.VisualStudio.DeploymentProject.dll not found after extract — VSIX layout may have changed"
+            Get-ChildItem $extDir -Recurse -File | Select-Object -First 40 | ForEach-Object { Write-Host "  $($_.FullName)" }
+            throw "Installer Projects build DLL not found after extract — VSIX layout may have changed"
           }
           Write-Host "Found build target: $($buildDll.FullName)"
 
