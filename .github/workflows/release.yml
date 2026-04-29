@@ -101,11 +101,24 @@ jobs:
         # devenv /Build is required for .vdproj — msbuild doesn't know how
         # to build them. The extension installed above is what gives
         # devenv that capability.
+        #
+        # HRESULT 8000000A "An error occurred while validating" during
+        # the setup project's pre-build validation is the well-known
+        # symptom of devenv's MEF cache not yet containing the freshly
+        # installed Installer Projects extension. The fix is to run
+        # devenv /updateconfiguration first so the extension is
+        # registered before the build starts.
         shell: pwsh
         run: |
           $devenv = (Get-ChildItem 'C:\Program Files\Microsoft Visual Studio' -Recurse -Filter 'devenv.com' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
           if (-not $devenv) { throw "devenv.com not found on runner" }
           Write-Host "Using $devenv"
+
+          Write-Host "Warming up devenv (updateconfiguration to register the VSIX)..."
+          & $devenv /updateconfiguration
+          # /updateconfiguration is fire-and-forget; ignore exit code.
+
+          Write-Host "Building SimLinkupSetup..."
           & $devenv "src\SimLinkup\SimLinkup.sln" /Build "Release|x86" /Project "SimLinkupSetup"
           if ($LASTEXITCODE -ne 0) { throw "devenv build failed with exit $LASTEXITCODE" }
 
