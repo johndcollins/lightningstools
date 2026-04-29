@@ -36,15 +36,24 @@ jobs:
       # The .vdproj setup project requires the "Microsoft Visual Studio
       # Installer Projects" extension. It's NOT part of a stock VS install —
       # we have to install it on the runner before devenv can build the
-      # project. This VSIX is the official Microsoft extension.
+      # project.
+      #
+      # We bypass VSIXInstaller.exe entirely. VSIXInstaller is asynchronous
+      # under /admin: it dispatches to a background MSI install and returns
+      # 0 immediately, so the next step starts before the extension is
+      # actually registered (this is the root cause of the HRESULT 8000000A
+      # validation failure on first attempt).
+      #
+      # Instead: a .vsix is just a zip. Extract its contents straight into
+      # the VS Installer Projects extension folder under the VS install,
+      # then prime the MEF cache. This is the pattern the popular
+      # "VS2022 Installer Projects" GitHub Actions use.
       - name: Install Visual Studio Installer Projects extension
         shell: pwsh
         run: |
           # Query the marketplace API for the latest version. The /vspackage
           # endpoint returns ExtensionAssetNotFoundException if you pass a
-          # placeholder version like 0.0.0; it needs a specific version
-          # number that actually exists. The extensionquery endpoint gives
-          # us the current version + a direct download URL.
+          # placeholder version like 0.0.0; it needs a specific version.
           $publisher = 'VisualStudioClient'
           $extension = 'MicrosoftVisualStudio2022InstallerProjects'
           $queryUrl = 'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery'
@@ -69,16 +78,39 @@ jobs:
           $vsixPath = "$env:RUNNER_TEMP\InstallerProjects.vsix"
           Write-Host "Downloading $vsixUrl"
           Invoke-WebRequest -Uri $vsixUrl -OutFile $vsixPath -UseBasicParsing
+          Write-Host "Downloaded $((Get-Item $vsixPath).Length) bytes"
 
-          $vsixInstaller = (Get-ChildItem 'C:\Program Files\Microsoft Visual Studio' -Recurse -Filter 'VSIXInstaller.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          if (-not $vsixInstaller) { throw "VSIXInstaller.exe not found" }
-          Write-Host "Installing via $vsixInstaller"
-          $proc = Start-Process -FilePath $vsixInstaller -ArgumentList "/quiet","/admin","$vsixPath" -Wait -PassThru
-          Write-Host "VSIXInstaller exit code: $($proc.ExitCode)"
-          # 0 = success, 1001 = already installed (also fine).
-          if ($proc.ExitCode -ne 0 -and $proc.ExitCode -ne 1001) {
-            throw "VSIXInstaller failed with exit code $($proc.ExitCode)"
+          # Locate the VS install root (devenv.com lives in <root>\Common7\IDE).
+          $devenv = (Get-ChildItem 'C:\Program Files\Microsoft Visual Studio' -Recurse -Filter 'devenv.com' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $devenv) { throw "devenv.com not found on runner" }
+          $vsRoot = (Get-Item $devenv).Directory.Parent.Parent.FullName
+          Write-Host "VS install root: $vsRoot"
+
+          # Target folder for the extension files. The path must exist
+          # under the VS install's Common7\IDE\CommonExtensions or
+          # Common7\IDE\Extensions tree to be discovered.
+          $extDir = Join-Path $vsRoot 'Common7\IDE\CommonExtensions\Microsoft\VSI'
+          if (Test-Path $extDir) { Remove-Item $extDir -Recurse -Force }
+          New-Item -ItemType Directory -Path $extDir -Force | Out-Null
+
+          # A .vsix is just a zip; extract straight into the target.
+          Write-Host "Extracting VSIX into $extDir"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($vsixPath, $extDir)
+
+          # Sanity check: the build target DLL must exist.
+          $buildDll = Get-ChildItem $extDir -Recurse -Filter 'Microsoft.VisualStudio.DeploymentProject*.dll' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $buildDll) {
+            Write-Host "Files extracted:"
+            Get-ChildItem $extDir -Recurse -File | Select-Object -First 30 | ForEach-Object { Write-Host "  $($_.FullName)" }
+            throw "Microsoft.VisualStudio.DeploymentProject.dll not found after extract — VSIX layout may have changed"
           }
+          Write-Host "Found build target: $($buildDll.FullName)"
+
+          # Prime the MEF/extension cache so devenv discovers the new files.
+          Write-Host "Running devenv /updateconfiguration to register the extension..."
+          & $devenv /updateconfiguration
+          Write-Host "devenv /updateconfiguration exit code: $LASTEXITCODE"
 
       - name: Restore NuGet packages
         # The solution still uses old-style packages.config in places —
@@ -99,26 +131,12 @@ jobs:
 
       - name: Build SimLinkupSetup.msi
         # devenv /Build is required for .vdproj — msbuild doesn't know how
-        # to build them. The extension installed above is what gives
+        # to build them. The extension extracted above is what gives
         # devenv that capability.
-        #
-        # HRESULT 8000000A "An error occurred while validating" during
-        # the setup project's pre-build validation is the well-known
-        # symptom of devenv's MEF cache not yet containing the freshly
-        # installed Installer Projects extension. The fix is to run
-        # devenv /updateconfiguration first so the extension is
-        # registered before the build starts.
         shell: pwsh
         run: |
           $devenv = (Get-ChildItem 'C:\Program Files\Microsoft Visual Studio' -Recurse -Filter 'devenv.com' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          if (-not $devenv) { throw "devenv.com not found on runner" }
-          Write-Host "Using $devenv"
-
-          Write-Host "Warming up devenv (updateconfiguration to register the VSIX)..."
-          & $devenv /updateconfiguration
-          # /updateconfiguration is fire-and-forget; ignore exit code.
-
-          Write-Host "Building SimLinkupSetup..."
+          Write-Host "Building SimLinkupSetup via $devenv"
           & $devenv "src\SimLinkup\SimLinkup.sln" /Build "Release|x86" /Project "SimLinkupSetup"
           if ($LASTEXITCODE -ne 0) { throw "devenv build failed with exit $LASTEXITCODE" }
 
