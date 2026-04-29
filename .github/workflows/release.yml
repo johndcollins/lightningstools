@@ -88,13 +88,14 @@ jobs:
         shell: pwsh
         run: nuget restore src\SimLinkup\SimLinkup.sln
 
-      - name: Build solution (Release|Any CPU)
-        # We build the solution first so all project dependencies of the
-        # setup project (SimLinkup.exe + every referenced HSM assembly +
-        # all the supporting Common.* dlls) are produced before the
-        # setup project tries to harvest them.
+      - name: Build solution (Release|x86)
+        # The .sln only declares Release|x86 — Any CPU is not a valid
+        # solution config. We build the solution first so all project
+        # dependencies of the setup project (SimLinkup.exe + every
+        # referenced HSM assembly + all the supporting Common.* dlls) are
+        # produced before the setup project tries to harvest them.
         shell: pwsh
-        run: msbuild src\SimLinkup\SimLinkup.sln /p:Configuration=Release /p:Platform="Any CPU" /verbosity:minimal /m
+        run: msbuild src\SimLinkup\SimLinkup.sln /p:Configuration=Release /p:Platform=x86 /verbosity:minimal /m
 
       - name: Build SimLinkupSetup.msi
         # devenv /Build is required for .vdproj — msbuild doesn't know how
@@ -105,7 +106,7 @@ jobs:
           $devenv = (Get-ChildItem 'C:\Program Files\Microsoft Visual Studio' -Recurse -Filter 'devenv.com' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
           if (-not $devenv) { throw "devenv.com not found on runner" }
           Write-Host "Using $devenv"
-          & $devenv "src\SimLinkup\SimLinkup.sln" /Build "Release" /Project "SimLinkupSetup" /ProjectConfig "Release"
+          & $devenv "src\SimLinkup\SimLinkup.sln" /Build "Release|x86" /Project "SimLinkupSetup"
           if ($LASTEXITCODE -ne 0) { throw "devenv build failed with exit $LASTEXITCODE" }
 
       - name: Locate built MSI
