@@ -230,9 +230,20 @@ namespace Common.HardwareSupport.Calibration
         [XmlAttribute("input")]
         public double Input { get; set; }
 
-        // For piecewise transforms: output voltage at this input.
+        // For piecewise transforms whose output is in volts (32 of the 33
+        // calibratable gauges in the editor). Default is 0 V; the C# default
+        // of `double` is also 0, so a gauge config that uses `output=` for
+        // raw DAC counts won't accidentally pick up the wrong value here.
         [XmlAttribute("volts")]
         public double Volts { get; set; }
+
+        // For piecewise transforms whose output is in raw DAC counts rather
+        // than volts (Henkie F-16 fuel flow drives its 12-bit DAC directly
+        // over USB/PHCC, bypassing AnalogDevices). Editor writes
+        // <Point input="500" output="18"/> for these gauges. HSMs that drive
+        // a DAC directly read this; HSMs that drive AD channels read Volts.
+        [XmlAttribute("output")]
+        public double Output { get; set; }
 
         // For piecewise_resolver transforms: reference angle (degrees) at
         // this input. Used by ADI-style gauges where the synchro angle is a
