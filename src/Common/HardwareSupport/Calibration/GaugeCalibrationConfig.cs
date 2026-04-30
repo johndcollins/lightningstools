@@ -176,6 +176,37 @@ namespace Common.HardwareSupport.Calibration
         [XmlElement("Invert")]
         public bool? Invert { get; set; }
 
+        // Caged-rest behaviour for standby ADI resolver pairs (pitch / roll
+        // SIN side carries these on each pair). When the gauge's OFF flag
+        // input is TRUE, the gauge's gimbal is mechanically caged — the
+        // gyro is at rest at whatever orientation it was in when last spun
+        // down, which is effectively random per power-cycle. The HSM picks
+        // a random angle in [Min, Max] degrees ONCE at construction time
+        // and drives sin/cos × PeakVolts to that angle for as long as the
+        // OFF flag stays TRUE. When the OFF flag goes FALSE (gauge spun
+        // up + uncaged), the HSM reverts to the configured piecewise
+        // transform and follows the input normally.
+        //
+        // Opt-in via CagedRestEnabled. Defaults to disabled (false / null)
+        // so existing profiles keep their pre-feature behaviour: when the
+        // OFF flag is visible the HSM continues to follow pitch/roll
+        // input regardless. Users who want the random rest behaviour
+        // enable it per gauge in the editor's Calibration tab.
+        //
+        // Only honoured by HSMs that opt in at the C# level (today:
+        // 10-0335-01 and 10-1084 standby ADIs, on their pitch and roll
+        // SIN channels). Editor defaults: pitch ±20°, roll ±40°. Set
+        // both Min and Max to the same value for a fixed (non-random)
+        // rest angle.
+        [XmlElement("CagedRestEnabled")]
+        public bool? CagedRestEnabled { get; set; }
+
+        [XmlElement("CagedRestRangeMinDegrees")]
+        public double? CagedRestRangeMinDegrees { get; set; }
+
+        [XmlElement("CagedRestRangeMaxDegrees")]
+        public double? CagedRestRangeMaxDegrees { get; set; }
+
         // Apply ZeroTrim + GainTrim to a computed voltage, then clamp to
         // [outputMin, outputMax] — the gauge's real hardware safe envelope
         // (e.g. Westin EPU is 0.1..2.0 V, not the universal ±10 V). Callers
