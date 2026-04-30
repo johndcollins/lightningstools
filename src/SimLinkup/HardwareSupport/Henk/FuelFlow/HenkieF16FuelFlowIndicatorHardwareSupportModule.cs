@@ -243,25 +243,38 @@ namespace SimLinkup.HardwareSupport.Henk.FuelFlow
         {
             try
             {
-                // Debounce: editors typically write a file by truncating and
-                // re-writing, which fires Changed twice in quick succession.
-                // The mtime check skips the second event when nothing has
-                // actually changed since we last reloaded.
-                if (e.FullPath.Equals(_unifiedConfigPath, StringComparison.OrdinalIgnoreCase))
+                // Dedup: editors typically write a file by truncating and
+                // re-writing, which fires Changed two or three times in
+                // quick succession. The mtime check skips events where
+                // nothing has actually changed since we last successfully
+                // reloaded. Crucially, we only update _lastFooWrite AFTER
+                // ReloadCalibration succeeds — if the reload fails (e.g.
+                // we caught the file mid-write past the loader's retry
+                // budget), the next event will still trigger a retry
+                // because the cached mtime is stale.
+                bool isUnified = e.FullPath.Equals(_unifiedConfigPath, StringComparison.OrdinalIgnoreCase);
+                bool isLegacy = e.FullPath.Equals(_legacyConfigPath, StringComparison.OrdinalIgnoreCase);
+                if (!isUnified && !isLegacy) return;
+
+                DateTime lw;
+                if (isUnified)
                 {
                     if (!File.Exists(_unifiedConfigPath)) return;
-                    var lw = File.GetLastWriteTime(_unifiedConfigPath);
+                    lw = File.GetLastWriteTime(_unifiedConfigPath);
                     if (lw == _lastUnifiedWrite) return;
-                    _lastUnifiedWrite = lw;
                 }
-                else if (e.FullPath.Equals(_legacyConfigPath, StringComparison.OrdinalIgnoreCase))
+                else
                 {
                     if (!File.Exists(_legacyConfigPath)) return;
-                    var lw = File.GetLastWriteTime(_legacyConfigPath);
+                    lw = File.GetLastWriteTime(_legacyConfigPath);
                     if (lw == _lastLegacyWrite) return;
-                    _lastLegacyWrite = lw;
                 }
+
                 ReloadCalibration();
+
+                // Update the dedup timestamp only after a successful reload.
+                if (isUnified) _lastUnifiedWrite = lw;
+                else _lastLegacyWrite = lw;
             }
             catch (Exception ex)
             {

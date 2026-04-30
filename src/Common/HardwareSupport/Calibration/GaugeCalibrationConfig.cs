@@ -56,16 +56,71 @@ namespace Common.HardwareSupport.Calibration
         // gets a strongly-typed result back. Safe to call when the file is
         // absent — returns null in that case (callers fall back to hardcoded
         // behaviour, matching the 10-0285 / 10-0294 precedent).
+        //
+        // Hot-reload-safe: this loader is what every editor-authored gauge
+        // config flows through, both at SimLinkup startup AND on every
+        // FileSystemWatcher Changed event. The watcher path races the
+        // editor's writer — the SimLinkup Profile Editor saves via Node's
+        // fs.writeFileSync, which on Windows triggers Changed events both
+        // when the file is truncated (size 0, XmlSerializer fails because
+        // the document is empty) AND when content is fully written. The
+        // first event arrives mid-write; without retries the watcher's
+        // change handler bails on it and the dedup mtime check skips
+        // subsequent events because LastWriteTime didn't change between
+        // truncate and write-complete on the same save. We close that
+        // race two ways:
+        //   1. Open the file with FileShare.ReadWrite so a writer holding
+        //      the file with default sharing doesn't lock us out
+        //      ("being used by another process" IOException).
+        //   2. Retry on transient failures (IOException + the
+        //      InvalidOperationException XmlSerializer throws on partial
+        //      documents) — 6 attempts × 50ms = ~300ms total, which
+        //      comfortably covers Node's writeFileSync window.
+        //
+        // Startup reads (no concurrent writer) hit the first attempt and
+        // return immediately, so this is free for the common case.
         public static T Load<T>(string filePath) where T : GaugeCalibrationConfig
         {
-            // Fully qualified — multiple `Util` classes exist across
-            // Common.* namespaces (Serialization, Compression.Zip, Imaging,
-            // MacroProgramming, Math, Strings, Threading, UI, …). Using the
-            // shortened `Util.` here would be ambiguous, so we spell out the
-            // path. The matching helper for the precedent
-            // Simtek100285HardwareSupportModuleConfig also lives under
-            // Common.Serialization.Util.
-            return Common.Serialization.Util.DeserializeFromXmlFile<T>(filePath);
+            return Load<T>(filePath, attempts: 6, delayMs: 50);
+        }
+
+        public static T Load<T>(string filePath, int attempts, int delayMs) where T : GaugeCalibrationConfig
+        {
+            if (filePath == null) throw new ArgumentNullException("filePath");
+            if (!System.IO.File.Exists(filePath)) return default(T);
+            if (attempts < 1) attempts = 1;
+            Exception last = null;
+            var serializer = new XmlSerializer(typeof(T));
+            for (var i = 0; i < attempts; i++)
+            {
+                try
+                {
+                    using (var fs = new System.IO.FileStream(
+                        filePath,
+                        System.IO.FileMode.Open,
+                        System.IO.FileAccess.Read,
+                        System.IO.FileShare.ReadWrite))
+                    {
+                        return (T)serializer.Deserialize(fs);
+                    }
+                }
+                catch (System.IO.IOException e)
+                {
+                    last = e;  // editor's writer still holds the file — retry
+                }
+                catch (System.InvalidOperationException e)
+                {
+                    last = e;  // XmlSerializer hit a partial / empty file — retry
+                }
+                if (i + 1 < attempts && delayMs > 0)
+                {
+                    System.Threading.Thread.Sleep(delayMs);
+                }
+            }
+            // All retries exhausted; surface the last error so the caller's
+            // catch (every change-handler we've written) logs it.
+            if (last != null) throw last;
+            return default(T);
         }
 
         // Mirror of Save in the existing Simtek100285HardwareSupportModuleConfig
