@@ -48,8 +48,7 @@ namespace SimLinkup.HardwareSupport.Simtek
         private GaugeChannelConfig _rollSinChannel;
         private GaugeChannelConfig _rollCosChannel;
 
-        private FileSystemWatcher _configFileWatcher;
-        private DateTime _lastConfigModified = DateTime.MinValue;
+        private ConfigFileReloadWatcher _configWatcher;
 
         private bool _isDisposed;
 
@@ -118,17 +117,19 @@ namespace SimLinkup.HardwareSupport.Simtek
             cosCh = c;
         }
 
+        // Hot-reload setup. The shared ConfigFileReloadWatcher
+        // handles the unreliable bits — Windows file watcher
+        // orphaning under antivirus / OneDrive / SMB filter
+        // drivers, internal buffer overflow, and partial-write
+        // race conditions — so this HSM just supplies the reload
+        // callback. See
+        // Common.HardwareSupport.Calibration.ConfigFileReloadWatcher.
         private void StartConfigWatcher()
         {
             if (_config == null || string.IsNullOrEmpty(_config.FilePath)) return;
             try
             {
-                _lastConfigModified = File.GetLastWriteTime(_config.FilePath);
-                _configFileWatcher = new FileSystemWatcher(
-                    Path.GetDirectoryName(_config.FilePath),
-                    Path.GetFileName(_config.FilePath));
-                _configFileWatcher.Changed += _config_Changed;
-                _configFileWatcher.EnableRaisingEvents = true;
+                _configWatcher = new ConfigFileReloadWatcher(_config.FilePath, ReloadConfig);
             }
             catch (Exception e)
             {
@@ -136,25 +137,15 @@ namespace SimLinkup.HardwareSupport.Simtek
             }
         }
 
-        private void _config_Changed(object sender, FileSystemEventArgs e)
+        private void ReloadConfig()
         {
-            try
-            {
-                var configFile = _config != null ? _config.FilePath : null;
-                if (string.IsNullOrEmpty(configFile)) return;
-                var lastWrite = File.GetLastWriteTime(configFile);
-                if (lastWrite == _lastConfigModified) return;
-                var reloaded = Simtek105859HardwareSupportModuleConfig.Load(configFile);
-                if (reloaded == null) return;
-                reloaded.FilePath = configFile;
-                _config = reloaded;
-                ResolveAllChannels(reloaded);
-                _lastConfigModified = lastWrite;
-            }
-            catch (Exception ex)
-            {
-                _log.Error(ex.Message, ex);
-            }
+            var configFile = _config != null ? _config.FilePath : null;
+            if (string.IsNullOrEmpty(configFile)) return;
+            var reloaded = Simtek105859HardwareSupportModuleConfig.Load(configFile);
+            if (reloaded == null) return;
+            reloaded.FilePath = configFile;
+            _config = reloaded;
+            ResolveAllChannels(reloaded);
         }
 
         public override AnalogSignal[] AnalogInputs => new[] {_pitchInputSignal, _rollInputSignal};
@@ -360,11 +351,10 @@ namespace SimLinkup.HardwareSupport.Simtek
                     UnregisterForInputEvents();
                     AbandonInputEventHandlers();
                     Common.Util.DisposeObject(_renderer);
-                    if (_configFileWatcher != null)
+                    if (_configWatcher != null)
                     {
-                        try { _configFileWatcher.EnableRaisingEvents = false; } catch { }
-                        try { _configFileWatcher.Dispose(); } catch { }
-                        _configFileWatcher = null;
+                        try { _configWatcher.Dispose(); } catch { }
+                        _configWatcher = null;
                     }
                 }
             }

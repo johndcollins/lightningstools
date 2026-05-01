@@ -1,4 +1,5 @@
 ﻿using Common.HardwareSupport;
+using Common.HardwareSupport.Calibration;
 using Common.IO.Ports;
 using Common.MacroProgramming;
 using log4net;
@@ -89,29 +90,48 @@ namespace SimLinkup.HardwareSupport.ArduinoSeat
 
         private AnalogSignal _bytesSentSignal;
 
-        private FileSystemWatcher _configFileWatcher;
+        // Hot-reload setup. The shared ConfigFileReloadWatcher handles
+        // the unreliable bits — Windows file watcher orphaning under
+        // antivirus / OneDrive / SMB filter drivers, internal buffer
+        // overflow, and partial-write race conditions. ArduinoSeat
+        // gates its UpdateOutputs path on _configChanged so a save
+        // mid-cycle doesn't send half-stale serial bytes; we preserve
+        // that here.
+        private ConfigFileReloadWatcher _configWatcher;
         private bool _configChanged = false;
-        private DateTime _lastConfigModified = DateTime.MinValue;
 
         public ArduinoSeatHardwareSupportModule(ArduinoSeatHardwareSupportModuleConfig config)
         {
             _config = config;
             CreateSignals(out _analogSignals, out _digitalSignals);
 
-            _configFileWatcher = new FileSystemWatcher(Path.GetDirectoryName(_config.FilePath), Path.GetFileName(_config.FilePath));
-            _configFileWatcher.Changed += _config_Changed;
-            _configFileWatcher.EnableRaisingEvents = true;
+            if (_config != null && !string.IsNullOrEmpty(_config.FilePath))
+            {
+                try
+                {
+                    _configWatcher = new ConfigFileReloadWatcher(_config.FilePath, ReloadConfig);
+                }
+                catch (Exception e)
+                {
+                    _log.Error(e.Message, e);
+                }
+            }
         }
 
-        private void _config_Changed(object sender, FileSystemEventArgs e)
+        private void ReloadConfig()
         {
-            if (_lastConfigModified != File.GetLastWriteTime(_config.FilePath))
+            var configFile = _config != null ? _config.FilePath : null;
+            if (string.IsNullOrEmpty(configFile)) return;
+            _configChanged = true;
+            try
             {
-                _configChanged = true;
-                var configfile = _config.FilePath;
-                _config = ArduinoSeatHardwareSupportModuleConfig.Load(configfile);
-                _config.FilePath = configfile;
-                _lastConfigModified = File.GetLastWriteTime(_config.FilePath);
+                var reloaded = ArduinoSeatHardwareSupportModuleConfig.Load(configFile);
+                if (reloaded == null) return;
+                reloaded.FilePath = configFile;
+                _config = reloaded;
+            }
+            finally
+            {
                 _configChanged = false;
             }
         }
@@ -1306,6 +1326,11 @@ namespace SimLinkup.HardwareSupport.ArduinoSeat
                 catch (Exception e)
                 {
                     _log.Error(e.Message, e);
+                }
+                if (disposing && _configWatcher != null)
+                {
+                    try { _configWatcher.Dispose(); } catch { }
+                    _configWatcher = null;
                 }
             }
             _isDisposed = true;

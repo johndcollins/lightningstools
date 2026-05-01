@@ -44,10 +44,8 @@ namespace SimLinkup.HardwareSupport.Henk.FuelFlow
         // for file CREATE events).
         private string _legacyConfigPath;
         private string _unifiedConfigPath;
-        private FileSystemWatcher _legacyConfigWatcher;
-        private FileSystemWatcher _unifiedConfigWatcher;
-        private DateTime _lastLegacyWrite = DateTime.MinValue;
-        private DateTime _lastUnifiedWrite = DateTime.MinValue;
+        private ConfigFileReloadWatcher _legacyConfigWatcher;
+        private ConfigFileReloadWatcher _unifiedConfigWatcher;
 
         private HenkieF16FuelFlowIndicatorHardwareSupportModule (
             DeviceConfig deviceConfig,
@@ -197,89 +195,32 @@ namespace SimLinkup.HardwareSupport.Henk.FuelFlow
         // mid-flight). The watcher mirrors the pattern used by every other
         // HSM the editor authored a config for (Lilbern, AMI, Astronautics,
         // Simtek, …).
+        // Hot-reload setup. Two ConfigFileReloadWatchers — one per
+        // config file. Both invoke ReloadCalibration on change; the
+        // helper's internal mtime dedup keeps duplicate events from
+        // firing the reload twice. Unlike the per-watcher patterns
+        // we used to have, the helper handles file-not-yet-existing
+        // (it will fire Created when the editor first writes the
+        // unified file) and self-heals from Windows watcher orphan
+        // scenarios via periodic resubscribe.
         private void StartConfigWatchers()
         {
             try
             {
-                if (!string.IsNullOrEmpty(_legacyConfigPath) && File.Exists(_legacyConfigPath))
+                if (!string.IsNullOrEmpty(_legacyConfigPath))
                 {
-                    _lastLegacyWrite = File.GetLastWriteTime(_legacyConfigPath);
-                    _legacyConfigWatcher = new FileSystemWatcher(
-                        Path.GetDirectoryName(_legacyConfigPath),
-                        Path.GetFileName(_legacyConfigPath));
-                    _legacyConfigWatcher.Changed += ConfigFile_Changed;
-                    _legacyConfigWatcher.Created += ConfigFile_Changed;
-                    _legacyConfigWatcher.EnableRaisingEvents = true;
+                    _legacyConfigWatcher = new ConfigFileReloadWatcher(_legacyConfigPath, ReloadCalibration);
                 }
             }
             catch (Exception e) { Log.Error(e.Message, e); }
-
             try
             {
                 if (!string.IsNullOrEmpty(_unifiedConfigPath))
                 {
-                    // Watch the directory + filter so a CREATE event fires
-                    // when the editor first writes the unified file. Without
-                    // this the watcher silently misses the very first save.
-                    var dir = Path.GetDirectoryName(_unifiedConfigPath);
-                    if (Directory.Exists(dir))
-                    {
-                        if (File.Exists(_unifiedConfigPath))
-                        {
-                            _lastUnifiedWrite = File.GetLastWriteTime(_unifiedConfigPath);
-                        }
-                        _unifiedConfigWatcher = new FileSystemWatcher(
-                            dir, Path.GetFileName(_unifiedConfigPath));
-                        _unifiedConfigWatcher.Changed += ConfigFile_Changed;
-                        _unifiedConfigWatcher.Created += ConfigFile_Changed;
-                        _unifiedConfigWatcher.EnableRaisingEvents = true;
-                    }
+                    _unifiedConfigWatcher = new ConfigFileReloadWatcher(_unifiedConfigPath, ReloadCalibration);
                 }
             }
             catch (Exception e) { Log.Error(e.Message, e); }
-        }
-
-        private void ConfigFile_Changed(object sender, FileSystemEventArgs e)
-        {
-            try
-            {
-                // Dedup: editors typically write a file by truncating and
-                // re-writing, which fires Changed two or three times in
-                // quick succession. The mtime check skips events where
-                // nothing has actually changed since we last successfully
-                // reloaded. Crucially, we only update _lastFooWrite AFTER
-                // ReloadCalibration succeeds — if the reload fails (e.g.
-                // we caught the file mid-write past the loader's retry
-                // budget), the next event will still trigger a retry
-                // because the cached mtime is stale.
-                bool isUnified = e.FullPath.Equals(_unifiedConfigPath, StringComparison.OrdinalIgnoreCase);
-                bool isLegacy = e.FullPath.Equals(_legacyConfigPath, StringComparison.OrdinalIgnoreCase);
-                if (!isUnified && !isLegacy) return;
-
-                DateTime lw;
-                if (isUnified)
-                {
-                    if (!File.Exists(_unifiedConfigPath)) return;
-                    lw = File.GetLastWriteTime(_unifiedConfigPath);
-                    if (lw == _lastUnifiedWrite) return;
-                }
-                else
-                {
-                    if (!File.Exists(_legacyConfigPath)) return;
-                    lw = File.GetLastWriteTime(_legacyConfigPath);
-                    if (lw == _lastLegacyWrite) return;
-                }
-
-                ReloadCalibration();
-
-                // Update the dedup timestamp only after a successful reload.
-                if (isUnified) _lastUnifiedWrite = lw;
-                else _lastLegacyWrite = lw;
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex.Message, ex);
-            }
         }
 
         // Re-evaluate calibration without touching the live device connection.
@@ -662,13 +603,11 @@ namespace SimLinkup.HardwareSupport.Henk.FuelFlow
                     Common.Util.DisposeObject(_renderer);
                     if (_legacyConfigWatcher != null)
                     {
-                        try { _legacyConfigWatcher.EnableRaisingEvents = false; } catch { }
                         try { _legacyConfigWatcher.Dispose(); } catch { }
                         _legacyConfigWatcher = null;
                     }
                     if (_unifiedConfigWatcher != null)
                     {
-                        try { _unifiedConfigWatcher.EnableRaisingEvents = false; } catch { }
                         try { _unifiedConfigWatcher.Dispose(); } catch { }
                         _unifiedConfigWatcher = null;
                     }
