@@ -94,6 +94,11 @@ namespace SimLinkup.HardwareSupport.Simtek
             reloaded.FilePath = configFile;
             _config = reloaded;
             _aoaCalibration = ResolvePiecewiseChannel(reloaded, "10058201_AOA_To_Instrument");
+            // Re-evaluate every output with the cached input values so the
+            // user sees the new calibration immediately. Without this,
+            // SimLinkup's event-driven update loop won't fire until the
+            // simulator next pushes a new input value.
+            UpdateOutputValues();
         }
 
         public override AnalogSignal[] AnalogInputs => new[] {_aoaInputSignal};

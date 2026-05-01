@@ -164,6 +164,11 @@ namespace SimLinkup.HardwareSupport.Simtek
             _config = reloaded;
             ApplyLegacyBaroFields(reloaded);
             ResolveAllChannels(reloaded);
+            // Re-evaluate every output with the cached input values so the
+            // user sees the new calibration immediately. Without this,
+            // SimLinkup's event-driven update loop won't fire until the
+            // simulator next pushes a new input value.
+            UpdateAltitudeOutputValues();
         }
 
         public override AnalogSignal[] AnalogInputs => new[] {_altitudeInputSignal, _barometricPressureInputSignal};
