@@ -248,6 +248,15 @@ namespace SimLinkup.HardwareSupport.Simtek
             reloaded.FilePath = configFile;
             _config = reloaded;
             ResolveAllChannels(reloaded);
+            // Re-evaluate every output with the cached input values so the
+            // user sees the new calibration on the gauge immediately,
+            // without having to wait for BMS to push a new pitch/roll/OFF
+            // value. SimLinkup is event-driven on input changes; without
+            // this, an editor save+reload doesn't visibly update the
+            // gauge until the simulator next changes the input.
+            UpdatePitchOutputValues();
+            UpdateRollOutputValues();
+            UpdateOFFFlagOutputValue();
         }
 
         public override AnalogSignal[] AnalogInputs => new[] {_pitchInputSignal, _rollInputSignal};

@@ -109,6 +109,12 @@ namespace SimLinkup.HardwareSupport.Simtek
             _config = reloaded;
             _airspeedCalibration = ResolvePiecewiseChannel(reloaded, "100194_Airspeed_To_Instrument");
             _machCalibration = reloaded.FindChannel("100194_Mach_To_Instrument");
+            // Re-evaluate every output with the cached input values so the
+            // user sees the new calibration immediately. Without this,
+            // SimLinkup's event-driven update loop won't fire until the
+            // simulator next pushes a new input value.
+            UpdateAirspeedOutputValues();
+            UpdateMachOutputValues();
         }
 
         // Same helper as Simtek100207: only return the channel when it carries

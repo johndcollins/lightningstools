@@ -93,6 +93,11 @@ namespace SimLinkup.HardwareSupport.Simtek
             reloaded.FilePath = configFile;
             _config = reloaded;
             _cabinAltCalibration = ResolvePiecewiseChannel(reloaded, "101078_CabinAlt_To_Instrument");
+            // Re-evaluate every output with the cached input values so the
+            // user sees the new calibration immediately. Without this,
+            // SimLinkup's event-driven update loop won't fire until the
+            // simulator next pushes a new input value.
+            UpdateOutputValues();
         }
 
         public override AnalogSignal[] AnalogInputs => new[] {_cabinPressInputSignal};
