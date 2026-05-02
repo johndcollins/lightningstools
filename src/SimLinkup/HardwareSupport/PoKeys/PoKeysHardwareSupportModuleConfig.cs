@@ -63,6 +63,30 @@ namespace SimLinkup.HardwareSupport.PoKeys
         // at the device's PWM base frequency.
         public uint PWMPeriodMicroseconds { get; set; } = 20000;
 
+        // When true, the HSM connects to the device for each signal
+        // change and disconnects afterwards instead of holding a
+        // persistent USB handle. Lets other apps (PoKeys vendor tool,
+        // a separately running test session, the editor's per-row
+        // Test buttons, etc.) share the board while SimLinkup is
+        // running, but adds ~30-80 ms of latency per write.
+        //
+        // Primary use case: the editor's PoKeys test affordance —
+        // when SimLinkup is running with HoldConnection, the bridge's
+        // setOutput call can't connect because SimLinkup owns the
+        // device. With ConnectPerWrite enabled, both sides can take
+        // turns. Useful for testing wiring without stopping SimLinkup.
+        //
+        // Useful for boards that only drive event-driven digital
+        // outputs (lamps, relays); not recommended for boards with
+        // continuously-updating PWM or analog channels because
+        // updates throttle to ~12 Hz which makes smooth transitions
+        // stutter.
+        //
+        // Default false (hold-connection model) preserves the
+        // existing performance for users who don't need to share the
+        // device.
+        public bool ConnectPerWrite { get; set; } = false;
+
         [XmlArray("DigitalOutputs")]
         [XmlArrayItem("Output")]
         public PoKeysDigitalOutputConfig[] DigitalOutputs { get; set; }
@@ -70,6 +94,17 @@ namespace SimLinkup.HardwareSupport.PoKeys
         [XmlArray("PWMOutputs")]
         [XmlArrayItem("Output")]
         public PoKeysPWMOutputConfig[] PWMOutputs { get; set; }
+
+        // PoExtBus is a daisy-chain of up to 10 × 8-bit shift registers
+        // (80 total bit outputs) driven via the dedicated PoExtBus
+        // connector. Bit numbering is 1..80, where bit 1 = Device 1
+        // output A (the first bit shifted out), bit 8 = Device 1 output
+        // H, bit 9 = Device 2 output A, etc. The HSM owns a 10-byte
+        // cache; SignalChanged updates one bit and pushes the whole
+        // array via AuxilaryBusSetData.
+        [XmlArray("PoExtBusOutputs")]
+        [XmlArrayItem("Output")]
+        public PoKeysPoExtBusOutputConfig[] PoExtBusOutputs { get; set; }
     }
 
     [Serializable]
@@ -80,6 +115,13 @@ namespace SimLinkup.HardwareSupport.PoKeys
         // to the 0-based pin ID the API expects.
         public byte Pin { get; set; }
 
+        // Free-form human-readable name for this output (e.g. "Gear
+        // down lamp", "Master caution"). Editor-only metadata; surfaced
+        // in the Mappings dropdown so users wire by purpose rather than
+        // pin number. Empty string is fine — the dropdown falls back
+        // to "DIGITAL_PIN[N]" when no name is set.
+        public string Name { get; set; } = "";
+
         // When true, SetPinData is called with bit 7 of the function
         // byte set so the device inverts the pin's logical level.
         // Default true matches the convention every other SimLinkup
@@ -87,6 +129,34 @@ namespace SimLinkup.HardwareSupport.PoKeys
         // counteracts the hardware's documented "uninverted output:
         // 0 -> 3.3V, 1 -> 0V" behavior.
         public bool Invert { get; set; } = true;
+    }
+
+    [Serializable]
+    public class PoKeysPoExtBusOutputConfig
+    {
+        // 1-based PoExtBus bit number, 1..80. Maps to byte (n-1)/8 and
+        // bit (n-1)%8 within the 10-byte AuxilaryBusSetData payload.
+        // The PoKeys vendor tool labels these as "Device N : A..H"; the
+        // editor UI surfaces both forms (Device + letter, plus the flat
+        // bit number) for orientation, but the on-disk and runtime
+        // representation is the flat 1..80 form.
+        public int Bit { get; set; }
+
+        // Free-form human-readable name (see PoKeysDigitalOutputConfig
+        // for the rationale). Surfaced in the Mappings dropdown.
+        public string Name { get; set; } = "";
+
+        // Software-side invert applied before the bit is written to the
+        // shift register. Default FALSE — opposite of GPIO digital
+        // pins. PoExtBus drives shift-register outputs that go to
+        // relay coils directly: bit=1 energises the coil, bit=0
+        // de-energises. At startup the cache is all zeros (relays
+        // OFF), and a sim signal transitioning to state=true turns
+        // the relay ON, which is no inversion. (GPIO pins default to
+        // Invert=true because their uninverted output is documented
+        // as 0=3.3V — that quirk doesn't apply to the shift-register
+        // chain.) Users wiring active-low relays can flip per output.
+        public bool Invert { get; set; } = false;
     }
 
     [Serializable]
@@ -103,5 +173,9 @@ namespace SimLinkup.HardwareSupport.PoKeys
         // applies the reversal at write time so the config and the
         // editor surface stay in human-readable order.
         public byte Channel { get; set; }
+
+        // Free-form human-readable name (see PoKeysDigitalOutputConfig
+        // for the rationale). Surfaced in the Mappings dropdown.
+        public string Name { get; set; } = "";
     }
 }

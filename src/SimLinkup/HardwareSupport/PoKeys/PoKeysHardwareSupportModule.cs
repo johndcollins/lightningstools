@@ -39,6 +39,25 @@ namespace SimLinkup.HardwareSupport.PoKeys
         private bool _isConnected;
         private bool _isDisposed;
 
+        // Cached target descriptor from the initial enumeration. In
+        // hold-connection mode this is set once at Initialize and not
+        // touched again. In ConnectPerWrite mode the SignalChanged
+        // handlers reuse it to call ConnectToDevice each time without
+        // having to re-scan USB on every output change. If the user
+        // unplugs the board, ConnectToDevice will fail and the handler
+        // logs the error — we don't try to re-enumerate at runtime.
+        private PoKeysDeviceInfo _target;
+
+        // Single-writer lock for SignalChanged handlers. SimLinkup
+        // raises events on multiple threads in parallel for different
+        // signals; without this lock, two SignalChanged handlers could
+        // call ConnectToDevice / write / DisconnectDevice on the
+        // shared _device instance simultaneously and tangle the USB
+        // state. Even in hold-connection mode the underlying DLL
+        // isn't documented as thread-safe, so the lock is good
+        // hygiene either way.
+        private readonly object _writeLock = new object();
+
         // Period in clock cycles that we computed at Initialize time
         // from the configured PWMPeriodMicroseconds and the device's
         // GetPWMFrequency() (12 MHz on PoKeys55, 25 MHz on PoKeys56/57).
@@ -50,16 +69,32 @@ namespace SimLinkup.HardwareSupport.PoKeys
         // We keep the full 6-slot array because SetPWMOutputsFast takes
         // all 6 at once, even if the user only configured a subset of
         // channels. Unused channels stay at 0 — harmless.
+        // Note: NOT readonly — SetPWMOutputs / SetPWMOutputsFast take
+        // ref parameters, and C# refuses to pass a readonly field as
+        // ref outside a constructor. The IDE will hint "make readonly"
+        // because the array reference itself never reassigns; ignore.
         private uint[] _pwmDuty = new uint[6];
 
         // Mask of which DLL channel slots were enabled in the
         // SetPWMOutputs initialisation call. Used so SignalChanged for
         // an unconfigured channel (defensive — shouldn't happen) can
         // refuse to clobber a slot the device thinks is disabled.
+        // Same readonly-vs-ref note as _pwmDuty.
         private bool[] _pwmEnabled = new bool[6];
+
+        // PoExtBus shift-register chain cache. Up to 10 × 8-bit
+        // daisy-chained shift registers = 80 bit outputs total. The
+        // DLL's AuxilaryBusSetData takes the WHOLE 10-byte array on
+        // every call; on SignalChanged we mutate one bit then push the
+        // full payload. _extBusActive flips true the first time we
+        // call AuxilaryBusSetData with enabled=1, so SignalChanged
+        // doesn't try to drive a disabled bus.
+        private readonly byte[] _extBusCache = new byte[10];
+        private bool _extBusActive;
 
         private DigitalSignal[] _digitalOutputSignals;
         private AnalogSignal[] _pwmOutputSignals;
+        private DigitalSignal[] _extBusOutputSignals;
 
         private PoKeysHardwareSupportModule(PoKeysDeviceConfig deviceConfig)
         {
@@ -67,7 +102,25 @@ namespace SimLinkup.HardwareSupport.PoKeys
         }
 
         public override AnalogSignal[] AnalogOutputs => _pwmOutputSignals;
-        public override DigitalSignal[] DigitalOutputs => _digitalOutputSignals;
+
+        // Digital outputs span both GPIO pins (1..55) and PoExtBus
+        // shift-register bits (1..80). Concat at access time so the
+        // runtime sees a single array, but signal-changed handlers
+        // route to the right hardware path via the signal's Id format.
+        public override DigitalSignal[] DigitalOutputs
+        {
+            get
+            {
+                var pins = _digitalOutputSignals ?? new DigitalSignal[0];
+                var bus = _extBusOutputSignals ?? new DigitalSignal[0];
+                if (bus.Length == 0) return pins;
+                if (pins.Length == 0) return bus;
+                var combined = new DigitalSignal[pins.Length + bus.Length];
+                pins.CopyTo(combined, 0);
+                bus.CopyTo(combined, pins.Length);
+                return combined;
+            }
+        }
 
         public override string FriendlyName
         {
@@ -172,6 +225,9 @@ namespace SimLinkup.HardwareSupport.PoKeys
                     _deviceConfig.Serial);
                 return false;
             }
+            // Cache the target descriptor so per-write reconnects in
+            // ConnectPerWrite mode don't have to re-enumerate the bus.
+            _target = target;
 
             if (!_device.ConnectToDevice(target))
             {
@@ -180,19 +236,86 @@ namespace SimLinkup.HardwareSupport.PoKeys
             }
             _isConnected = true;
 
+            // Configure once at startup either way — pins must be
+            // flipped to digital-output mode (they default to input
+            // after power-up), the PWM block needs its period set,
+            // and PoExtBus needs to be enabled. Per-write mode just
+            // drops the connection AFTER configuration; subsequent
+            // SignalChanged handlers reconnect on demand.
             ConfigureDigitalOutputs();
             ConfigurePWMOutputs();
+            ConfigurePoExtBusOutputs();
 
             _digitalOutputSignals = CreateDigitalOutputSignals();
             _pwmOutputSignals = CreatePWMOutputSignals();
+            _extBusOutputSignals = CreatePoExtBusOutputSignals();
 
             _log.InfoFormat(
-                "PoKeys {0} initialised: {1} digital output{2}, {3} PWM channel{4}, period={5} us.",
+                "PoKeys {0} initialised: {1} digital output{2}, {3} PWM channel{4} (period={5} us), {6} PoExtBus bit{7}, mode={8}.",
                 FriendlyName,
                 _digitalOutputSignals.Length, _digitalOutputSignals.Length == 1 ? "" : "s",
                 _pwmOutputSignals.Length, _pwmOutputSignals.Length == 1 ? "" : "s",
-                _deviceConfig.PWMPeriodMicroseconds);
+                _deviceConfig.PWMPeriodMicroseconds,
+                _extBusOutputSignals.Length, _extBusOutputSignals.Length == 1 ? "" : "s",
+                _deviceConfig.ConnectPerWrite ? "connect-per-write" : "hold-connection");
+
+            // In ConnectPerWrite mode, drop the handle now that
+            // initial config is done. Subsequent writes will
+            // reconnect through EnsureConnectedForWrite below.
+            if (_deviceConfig.ConnectPerWrite)
+            {
+                try { _device.DisconnectDevice(); } catch { }
+                _isConnected = false;
+            }
             return true;
+        }
+
+        // For ConnectPerWrite mode: open the device, run the write
+        // action, close the device. Locked so concurrent SignalChanged
+        // events don't tangle the USB state. Errors are caught and
+        // logged so a transient hiccup on one output doesn't break
+        // every other output. In hold-connection mode this becomes a
+        // straight call under the same lock — safe regardless.
+        private void RunWriteUnderLock(Action<PoKeysDevice> writeAction)
+        {
+            if (writeAction == null || _device == null) return;
+            lock (_writeLock)
+            {
+                if (_isDisposed) return;
+                if (_deviceConfig.ConnectPerWrite)
+                {
+                    if (_target == null) return;  // Initialize never matched
+                    try
+                    {
+                        if (!_device.ConnectToDevice(_target))
+                        {
+                            _log.WarnFormat("PoKeys serial {0}: connect-per-write failed (device in use or unplugged); skipping this update.",
+                                _deviceConfig.Serial);
+                            return;
+                        }
+                        _isConnected = true;
+                        try
+                        {
+                            writeAction(_device);
+                        }
+                        finally
+                        {
+                            try { _device.DisconnectDevice(); } catch { }
+                            _isConnected = false;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        _log.Error(e.Message, e);
+                    }
+                }
+                else
+                {
+                    if (!_isConnected) return;
+                    try { writeAction(_device); }
+                    catch (Exception e) { _log.Error(e.Message, e); }
+                }
+            }
         }
 
         // For each declared digital output, write a SetPinData call so
@@ -219,6 +342,13 @@ namespace SimLinkup.HardwareSupport.PoKeys
                         _deviceConfig.Serial, pinCfg.Pin);
                     continue;
                 }
+                // Pin 54 is the device's reset pin. The PoKeys vendor
+                // tool greys it out for normal output use, but driving
+                // it deliberately is a valid way to issue a soft reset
+                // command (e.g. to recover a stuck peripheral). We
+                // allow it through with no special handling — the
+                // editor surfaces it with a warning so users don't
+                // wire it accidentally.
                 var pinId0 = (byte)(pinCfg.Pin - 1);
                 var function = (byte)(digitalOutputBit | (pinCfg.Invert ? invertBit : 0));
                 try
@@ -275,6 +405,28 @@ namespace SimLinkup.HardwareSupport.PoKeys
             try
             {
                 _device.SetPWMOutputs(ref _pwmEnabled, ref _pwmPeriodCycles, ref _pwmDuty);
+            }
+            catch (Exception e)
+            {
+                _log.Error(e.Message, e);
+            }
+        }
+
+        // Enable the PoExtBus shift-register chain and clear all 80 bit
+        // outputs. The DLL's AuxilaryBusSetData(enabled, dataBytes)
+        // takes the WHOLE 10-byte payload — there's no per-bit API —
+        // so we own the cache and push the full array on every change.
+        // Skipped entirely when no PoExtBus outputs are declared so we
+        // don't enable the bus on PoKeys boards that aren't using it.
+        private void ConfigurePoExtBusOutputs()
+        {
+            if (_deviceConfig.PoExtBusOutputs == null || _deviceConfig.PoExtBusOutputs.Length == 0) return;
+
+            for (var i = 0; i < _extBusCache.Length; i++) _extBusCache[i] = 0;
+            try
+            {
+                _device.AuxilaryBusSetData(1, _extBusCache);
+                _extBusActive = true;
             }
             catch (Exception e)
             {
@@ -353,26 +505,65 @@ namespace SimLinkup.HardwareSupport.PoKeys
             return list.ToArray();
         }
 
+        // Build one DigitalSignal per declared PoExtBus output. Caches
+        // the configured invert flag in SubSourceAddress so the
+        // SignalChanged handler can apply it without re-walking the
+        // config array on every event. Bit number is stored in Index.
+        private DigitalSignal[] CreatePoExtBusOutputSignals()
+        {
+            if (_deviceConfig.PoExtBusOutputs == null) return new DigitalSignal[0];
+            var list = new List<DigitalSignal>();
+            foreach (var busCfg in _deviceConfig.PoExtBusOutputs)
+            {
+                if (busCfg == null) continue;
+                if (busCfg.Bit < 1 || busCfg.Bit > 80) continue;
+                // Friendly Device:Letter form for logging — the user
+                // sees this in the PoKeys vendor tool, so logs that
+                // mention "Device 3 : E" are easier to correlate
+                // against the wiring than a flat bit number.
+                var deviceIndex = ((busCfg.Bit - 1) / 8) + 1; // 1..10
+                var letter = (char)('A' + ((busCfg.Bit - 1) % 8)); // A..H
+                var signal = new DigitalSignal
+                {
+                    Category = "Outputs",
+                    CollectionName = "PoExtBus",
+                    FriendlyName = $"PoExtBus bit {busCfg.Bit} (Device {deviceIndex} : {letter})",
+                    Id = $"PoKeys[{_deviceConfig.Serial}]__PoExtBus[{busCfg.Bit}]",
+                    Index = busCfg.Bit,
+                    PublisherObject = this,
+                    Source = _device,
+                    SourceFriendlyName = FriendlyName,
+                    SourceAddress = _deviceConfig.Serial.ToString(),
+                    SubSource = busCfg.Bit,
+                    SubSourceFriendlyName = $"Device {deviceIndex} : {letter}",
+                    // Stash invert as the string "1"/"0" so the handler
+                    // doesn't need to look up the config record by bit
+                    // every time. Lightweight and avoids a closure.
+                    SubSourceAddress = busCfg.Invert ? "1" : "0",
+                    State = false
+                };
+                signal.SignalChanged += PoExtBusOutputSignalChanged;
+                list.Add(signal);
+            }
+            return list.ToArray();
+        }
+
         private void DigitalOutputSignalChanged(object sender, DigitalSignalChangedEventArgs args)
         {
-            if (!_isConnected || _device == null) return;
             var signal = sender as DigitalSignal;
             if (signal == null || !signal.Index.HasValue) return;
             var pin = signal.Index.Value;
             if (pin < 1 || pin > 55) return;
-            try
-            {
-                _device.SetOutput((byte)(pin - 1), args.CurrentState);
-            }
-            catch (Exception e)
-            {
-                _log.Error(e.Message, e);
-            }
+            var state = args.CurrentState;
+            // Lock + connect-if-needed handled inside RunWriteUnderLock.
+            // The _isConnected guard from the old handler is gone:
+            // in ConnectPerWrite mode that flag is false between
+            // events by design.
+            RunWriteUnderLock(dev => dev.SetOutput((byte)(pin - 1), state));
         }
 
         private void PWMOutputSignalChanged(object sender, AnalogSignalChangedEventArgs args)
         {
-            if (!_isConnected || _device == null) return;
             var signal = sender as AnalogSignal;
             if (signal == null || !signal.Index.HasValue) return;
             var channel = signal.Index.Value;
@@ -385,14 +576,42 @@ namespace SimLinkup.HardwareSupport.PoKeys
             var dutyCycles = (uint)(fraction * _pwmPeriodCycles);
             // Reverse-index for the DLL: PWM1 (config) -> slot 5 (DLL).
             _pwmDuty[6 - channel] = dutyCycles;
-            try
-            {
-                _device.SetPWMOutputsFast(ref _pwmDuty);
-            }
-            catch (Exception e)
-            {
-                _log.Error(e.Message, e);
-            }
+            // In ConnectPerWrite mode the device's PWM block is in
+            // configured-then-disconnected state. Reconnecting brings
+            // up a fresh handle, but the device keeps its last
+            // SetPWMOutputs configuration across the disconnect, so
+            // SetPWMOutputsFast (duty-only update) still works.
+            RunWriteUnderLock(dev => dev.SetPWMOutputsFast(ref _pwmDuty));
+        }
+
+        // Mutate one bit in the 10-byte PoExtBus cache and push the
+        // entire array to the device. The DLL has no per-bit API — the
+        // shift-register chain only accepts the full payload — so we
+        // pay one USB round-trip per bit change. Acceptable since the
+        // panel use case (cockpit relay panels, dozens of bits) doesn't
+        // change every signal at once.
+        //
+        // The shift registers HOLD their state across disconnects, so
+        // ConnectPerWrite mode works fine here too: cumulative bit
+        // changes survive even though each call disconnects.
+        private void PoExtBusOutputSignalChanged(object sender, DigitalSignalChangedEventArgs args)
+        {
+            if (!_extBusActive) return;
+            var signal = sender as DigitalSignal;
+            if (signal == null || !signal.Index.HasValue) return;
+            var bit = signal.Index.Value;
+            if (bit < 1 || bit > 80) return;
+            // Apply software invert before writing the bit. Cached on
+            // the signal's SubSourceAddress as "1"/"0" by
+            // CreatePoExtBusOutputSignals.
+            var invert = signal.SubSourceAddress == "1";
+            var effective = invert ? !args.CurrentState : args.CurrentState;
+            var byteIndex = (bit - 1) / 8;
+            var bitInByte = (bit - 1) % 8;
+            var mask = (byte)(1 << bitInByte);
+            if (effective) _extBusCache[byteIndex] |= mask;
+            else _extBusCache[byteIndex] &= (byte)~mask;
+            RunWriteUnderLock(dev => dev.AuxilaryBusSetData(1, _extBusCache));
         }
 
         public void Dispose()
