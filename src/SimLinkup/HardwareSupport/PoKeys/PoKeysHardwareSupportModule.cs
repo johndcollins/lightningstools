@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using Common.HardwareSupport;
 using Common.MacroProgramming;
 using log4net;
@@ -38,15 +39,6 @@ namespace SimLinkup.HardwareSupport.PoKeys
         private PoKeysDevice _device;
         private bool _isConnected;
         private bool _isDisposed;
-
-        // Cached target descriptor from the initial enumeration. In
-        // hold-connection mode this is set once at Initialize and not
-        // touched again. In ConnectPerWrite mode the SignalChanged
-        // handlers reuse it to call ConnectToDevice each time without
-        // having to re-scan USB on every output change. If the user
-        // unplugs the board, ConnectToDevice will fail and the handler
-        // logs the error — we don't try to re-enumerate at runtime.
-        private PoKeysDeviceInfo _target;
 
         // Single-writer lock for SignalChanged handlers. SimLinkup
         // raises events on multiple threads in parallel for different
@@ -194,47 +186,53 @@ namespace SimLinkup.HardwareSupport.PoKeys
         private bool Initialize()
         {
             _device = new PoKeysDevice();
-            // Discover. Extended info on so SerialNumber is populated;
-            // USB on, Ethernet off (v1 scope); default discovery timeout
-            // (parameter is ignored when ethernet=false but the API
-            // requires the int).
-            var discovered = _device.EnumeratePoKeysDevices(true, true, false, 0);
-            if (discovered == null || discovered.Count == 0)
+            // Connect by serial number directly. We deliberately do
+            // NOT call EnumeratePoKeysDevices here:
+            //
+            // PoKeysDevice_DLL's EnumeratePoKeysDevices populates an
+            // internal PoKeysUSBDeviceObject[] via native USB
+            // enumeration. The native marshaller has a bug where one
+            // of the array slots gets the literal byte value 0xFF
+            // written into a managed reference slot instead of a real
+            // object pointer or null. The CLR doesn't validate
+            // references at write time, so the bad array sits dormant
+            // in our heap. The first time the GC's mark phase walks
+            // it (during a Gen 2 compaction triggered by SimLinkup's
+            // runtime loop allocation pressure ~1 minute later), it
+            // hits 0xFF as if it were an object pointer, dereferences
+            // [0xff+0x478] → AV in clr!SVR::gc_heap::mark_object_simple1
+            // → CLR panics → process exits with c0000005 / 80131506.
+            //
+            // The DLL exposes a direct ConnectToDevice(serial, checkEthernet)
+            // overload that opens the USB handle by serial WITHOUT
+            // populating the bad array. F4ToPokeys and other PoKeys
+            // consumers use this pattern in their runtime hot path
+            // (enumerate only in their UI / discovery code).
+            //
+            // checkEthernet=0 → USB only, no Ethernet probe (matches
+            // our previous EnumeratePoKeysDevices(_, _, ethernet:false, _)
+            // call). Returns true on success, false if the device
+            // isn't reachable (unplugged, in use by another process, etc).
+            int serial = (int)_deviceConfig.Serial;
+            if (!_device.ConnectToDevice(serial, 0))
             {
-                _log.WarnFormat("No PoKeys devices found on USB; cannot bind serial {0}.",
+                _log.WarnFormat("PoKeys serial {0} not reachable on USB (unplugged, in use, or wrong serial). " +
+                                "Skipping this device — other PoKeys boards (if any) will still be initialised.",
                     _deviceConfig.Serial);
-                return false;
-            }
-            // Match the configured serial. If two boards happen to
-            // enumerate in different order across runs, we still pick
-            // the right one because the lookup is by serial, not index.
-            PoKeysDeviceInfo target = null;
-            foreach (var info in discovered)
-            {
-                if (info != null && (uint)info.SerialNumber == _deviceConfig.Serial)
-                {
-                    target = info;
-                    break;
-                }
-            }
-            if (target == null)
-            {
-                _log.WarnFormat(
-                    "PoKeys with serial {0} declared in config but not currently plugged in. " +
-                    "Skipping this device — other PoKeys boards (if any) will still be initialised.",
-                    _deviceConfig.Serial);
-                return false;
-            }
-            // Cache the target descriptor so per-write reconnects in
-            // ConnectPerWrite mode don't have to re-enumerate the bus.
-            _target = target;
-
-            if (!_device.ConnectToDevice(target))
-            {
-                _log.ErrorFormat("Failed to connect to PoKeys serial {0}.", _deviceConfig.Serial);
                 return false;
             }
             _isConnected = true;
+            // Clear the DLL's internal detectedDevicesList. ConnectToDevice
+            // populates it via EnumerateDevices_HID/Bulk, which has a
+            // native marshaling bug that writes the literal byte 0xFF
+            // into one of the managed reference slots of the list's
+            // backing PoKeysUSBDeviceObject[]. The bad reference sits
+            // dormant in our heap until the GC's mark phase walks it,
+            // hits 0xFF as if it were an object pointer, and AVs in
+            // clr!SVR::gc_heap::mark_object_simple1+0x2ff. Clearing
+            // the list here unroots the corrupt array; the next GC
+            // collects it and the bug never fires.
+            ClearDetectedDevicesList(_device);
 
             // Configure once at startup either way — pins must be
             // flipped to digital-output mode (they default to input
@@ -270,6 +268,36 @@ namespace SimLinkup.HardwareSupport.PoKeys
             return true;
         }
 
+        // Wipe PoKeysDevice.detectedDevicesList via reflection. The
+        // DLL's enumeration code (which is invoked internally by
+        // ConnectToDevice) populates this private List<> with results
+        // from a buggy native marshal — one slot of its backing array
+        // contains the literal byte 0xFF instead of a managed object
+        // reference. Replacing the list with a fresh empty one makes
+        // the corrupt backing array unrooted; the next GC collects it
+        // and the bug never fires.
+        //
+        // Cached fast-path: look up the FieldInfo once per process.
+        // null when reflection can't find the field (different DLL
+        // version, etc.) — in that case we silently skip; the worst
+        // case is the original crash returns.
+        private static FieldInfo _detectedDevicesListField =
+            typeof(PoKeysDevice).GetField("detectedDevicesList",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+        private static void ClearDetectedDevicesList(PoKeysDevice device)
+        {
+            if (device == null || _detectedDevicesListField == null) return;
+            try
+            {
+                _detectedDevicesListField.SetValue(device, new List<PoKeysUSBDeviceObject>());
+            }
+            catch (Exception e)
+            {
+                _log.WarnFormat("Could not clear PoKeys detectedDevicesList: {0}", e.Message);
+            }
+        }
+
         // For ConnectPerWrite mode: open the device, run the write
         // action, close the device. Locked so concurrent SignalChanged
         // events don't tangle the USB state. Errors are caught and
@@ -284,16 +312,19 @@ namespace SimLinkup.HardwareSupport.PoKeys
                 if (_isDisposed) return;
                 if (_deviceConfig.ConnectPerWrite)
                 {
-                    if (_target == null) return;  // Initialize never matched
                     try
                     {
-                        if (!_device.ConnectToDevice(_target))
+                        // Direct-by-serial connect; never call
+                        // EnumeratePoKeysDevices (see Initialize for why).
+                        if (!_device.ConnectToDevice((int)_deviceConfig.Serial, 0))
                         {
                             _log.WarnFormat("PoKeys serial {0}: connect-per-write failed (device in use or unplugged); skipping this update.",
                                 _deviceConfig.Serial);
                             return;
                         }
                         _isConnected = true;
+                        // Same enumerate-leak workaround as Initialize.
+                        ClearDetectedDevicesList(_device);
                         try
                         {
                             writeAction(_device);
