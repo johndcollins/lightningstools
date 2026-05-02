@@ -200,6 +200,8 @@
     <Compile Include="HardwareSupport\Simtek\Simtek101084HardwareSupportModule.cs" />
     <Compile Include="HardwareSupport\Simtek\Simtek101090HardwareSupportModule.cs" />
     <Compile Include="HardwareSupport\Simtek\Simtek101091HardwareSupportModule.cs" />
+    <Compile Include="HardwareSupport\Simtek\SimtekJDLADI01HardwareSupportModule.cs" />
+    <Compile Include="HardwareSupport\Simtek\SimtekJDLADI01HardwareSupportModuleConfig.cs" />
     <Compile Include="HardwareSupport\Simtek\Simtek100194HardwareSupportModuleConfig.cs" />
     <Compile Include="HardwareSupport\Simtek\Simtek100207HardwareSupportModuleConfig.cs" />
     <Compile Include="HardwareSupport\Simtek\Simtek100207_110HardwareSupportModuleConfig.cs" />
